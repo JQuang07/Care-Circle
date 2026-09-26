@@ -168,7 +168,8 @@ export type TimeTravelRequest =                                 // D2 POST famil
 export interface FireDueRequest { scheduledCallId: string; }    // D2 POST family /demo/fire-due
 
 export interface DemoCall {                                     // D3 GET voice /demo/calls?seniorId=
-  callId: string; kind: CallEnded["kind"]; purpose?: string; scheduledCallId?: string; startedAt: string;
+  callId: string; kind: string;    // D3 leaves `kind` open ("inbound", "outbound", …)
+  purpose?: string; scheduledCallId?: string; startedAt: string;
 }
 
 export interface SimulateVerificationRequest {                  // D3 POST voice /demo/simulate-verification

@@ -276,7 +276,7 @@ export const FireDueRequestSchema = z.object({ scheduledCallId: z.string() });
 
 export const DemoCallSchema = z.object({
   callId: z.string(),
-  kind: z.enum(["inbound", "verification", "scheduled_family_call"]),
+  kind: z.string(),
   purpose: z.string().optional(),
   scheduledCallId: z.string().optional(),
   startedAt: z.string(),
