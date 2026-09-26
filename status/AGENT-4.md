@@ -25,7 +25,7 @@ _Last updated: integration-v2, Part 1 task 1 (contracts) done._
   - Note: no LiveKit server runs by default (not in `docker-compose.yml`), so real video needs one started by hand or LiveKit Cloud.
 - [x] **7. Integration duty (recurring; tooling ready):** after each checkpoint merge run `pnpm e2e`, then `pnpm e2e:file` (dry run) → `pnpm e2e:file --write`. `scripts/file-bugs.ts` files each failure under `## BUGS FROM INTEGRATION` in the owner's status file (voice → A1, money → A2, family/delivery → A3) with expected/actual and the last request/response, replaces the "none yet" placeholder, never duplicates an entry (HTML-comment marker), and touches nothing outside that heading. web/contract failures are listed, not filed. Tested with a planted bug (write, re-run = 0 new, reverted).
   - Not filed yet: no checkpoint merge has happened, and today's 7 failures (table below) are all tasks already assigned in the runbooks. First real filing: after the Part-1 checkpoint merge.
-- [ ] 8. Final README (H62)
+- [x] **8. Final README:** architecture (5 services + web, Mermaid diagram and table, grocery flow), how to run, pages, a mock-vs-real table (D15 semantics), the plain "DoorDash is an unofficial third-party integration" section (dry run by default, one human-confirmed live order at most), tests, layout and team. Claims checked against each service README. Re-check the mock-vs-real rows at the H62 freeze if any provider changes.
 
 ## Done
 - **Monorepo:** pnpm workspace (`packages/contracts`, `services/{voice,money,family}`, `apps/web`, `e2e`), Node ≥22.12, pnpm 10 pinned.
