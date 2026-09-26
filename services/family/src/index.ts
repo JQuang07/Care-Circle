@@ -1,31 +1,26 @@
-/**
- * family service — scaffold from Agent 4 (Phase 0). Owned by Agent 3 from here on.
- * Port 4003 is fixed by CONTRACTS.md §1. Types/schemas: import from "@care-circle/contracts".
- */
-import Fastify from "fastify";
-import { HealthSchema } from "@care-circle/contracts";
+import { loadConfig } from "./config.js";
+import { buildApp } from "./app.js";
+import { createDeps, startScheduler } from "./bootstrap.js";
+import { ensureSeeded } from "./domain/circle.js";
 
-const SERVICE = "family";
-const PORT = 4003;
+const cfg = loadConfig();
+// Borrow Fastify's pino logger for domain logs too.
+const bootLog = { info: console.log, warn: console.warn, error: console.error };
+const deps = await createDeps(cfg, bootLog);
+const app = await buildApp(deps, { logger: true });
+deps.log = app.log;
 
-const app = Fastify({ logger: { level: process.env.LOG_LEVEL ?? "info" } });
+if (await ensureSeeded(deps)) app.log.info("seeded circle + 8 weeks of call history");
+const stop = startScheduler(deps);
 
-// CONTRACTS.md §0: GET /health → { ok: true, service, mock }
-app.get("/health", async () => HealthSchema.parse({ ok: true, service: SERVICE, mock: process.env.MOCK === "1" }));
+await app.listen({ port: cfg.port, host: cfg.host });
+app.log.info({ store: deps.store.kind, muse: deps.muse.enabled, mock: cfg.mock, livekit: deps.rooms.serverUrl }, "family service ready");
 
-// CONTRACTS.md §0 error shape for everything, including unknown routes.
-app.setNotFoundHandler((req, reply) => {
-  reply.code(404).send({ error: { code: "NOT_FOUND", message: `${req.method} ${req.url} is not a route on ${SERVICE}` } });
-});
-app.setErrorHandler((err: Error & { statusCode?: number; code?: string }, _req, reply) => {
-  const status = err.statusCode && err.statusCode >= 400 ? err.statusCode : 500;
-  if (status >= 500) app.log.error(err);
-  reply.code(status).send({ error: { code: err.code ?? (status >= 500 ? "INTERNAL" : "BAD_REQUEST"), message: err.message } });
-});
-
-app.get("/", async () => ({ hello: `care-circle ${SERVICE}`, owner: "Agent 3" }));
-
-app.listen({ port: PORT, host: "0.0.0.0" }).catch((err) => {
-  app.log.error(err);
-  process.exit(1);
-});
+for (const sig of ["SIGINT", "SIGTERM"] as const) {
+  process.on(sig, async () => {
+    stop();
+    await app.close();
+    await deps.store.close();
+    process.exit(0);
+  });
+}
