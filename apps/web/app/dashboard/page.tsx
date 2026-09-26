@@ -4,6 +4,8 @@ import Link from "next/link";
 import { z } from "zod";
 import { HoldSchema, OrderSchema, ScheduledCallSchema, type Hold, type Order, type ScheduledCall } from "@care-circle/contracts";
 import { FraudDrawer } from "@/components/FraudDrawer";
+import { DeliveryStatus } from "@/components/DeliveryStatus";
+import { deliveryView, loadDelivery } from "@/lib/delivery";
 import { SAMPLE_HOLDS, SAMPLE_MOMENTS, SAMPLE_ORDERS, SAMPLE_UPCOMING } from "@/lib/fixtures";
 import { svc, explain } from "@/lib/svc";
 import { usePoll } from "@/lib/usePoll";
@@ -30,13 +32,14 @@ function SampleTag({ s }: { s: Section<unknown> | undefined }) {
 export default function Dashboard() {
   const [open, setOpen] = useState<Order>();
   const d = usePoll(async (signal) => {
-    const [moments, upcoming, holds, orders] = await Promise.all([
+    const [moments, upcoming, holds, orders, delivery] = await Promise.all([
       load(svc<Moments>("family", "/moments/sen_rose", { signal }), SAMPLE_MOMENTS),
       load(svc("family", "/schedule/sen_rose/upcoming", { schema: z.array(ScheduledCallSchema), signal }), SAMPLE_UPCOMING as ScheduledCall[]),
       load(svc("money", "/holds?seniorId=sen_rose", { schema: z.array(HoldSchema), signal }), SAMPLE_HOLDS as Hold[]),
       load(svc("money", "/orders?seniorId=sen_rose", { schema: z.array(OrderSchema), signal }), SAMPLE_ORDERS as Order[]),
+      loadDelivery(signal),
     ]);
-    return { moments, upcoming, holds, orders };
+    return { moments, upcoming, holds, orders, delivery };
   }, 3000);
 
   const m = d?.moments.data;
@@ -98,7 +101,13 @@ export default function Dashboard() {
                   {recent.map((o) => (
                     <tr key={o.id} className="border-t border-mist">
                       <td className="whitespace-nowrap px-4 py-2 text-heron">{roseTime(o.createdAt)}</td>
-                      <td className="px-4 py-2">{o.request.payeeDescription ?? o.request.items.map((i) => i.name).join(", ")}</td>
+                      <td className="px-4 py-2">
+                        {o.request.payeeDescription ?? o.request.items.map((i) => i.name).join(", ")}
+                        {(() => {
+                          const v = deliveryView(o, d?.delivery.byOrderId[o.id]);
+                          return v && <DeliveryStatus view={v} liveCheckout={d!.delivery.liveCheckout} variant="row" />;
+                        })()}
+                      </td>
                       <td className="px-4 py-2 text-right tabular-nums">{usd(o.request.amountCents)}</td>
                       <td className="px-4 py-2">
                         <span className={o.status === "held" ? "font-bold text-alarm" : o.status === "paid" ? "text-leaf" : "text-heron"}>{o.status}</span>

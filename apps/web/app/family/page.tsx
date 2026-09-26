@@ -4,6 +4,7 @@ import { z } from "zod";
 import { MessageSchema, OrderSchema, type Message, type Order } from "@care-circle/contracts";
 import { Phone, type PhoneOwner } from "@/components/phone/Phone";
 import { PasskeyModal } from "@/components/PasskeyModal";
+import { loadDelivery, type DeliveryInfo } from "@/lib/delivery";
 import { SAMPLE_MESSAGES, SAMPLE_ORDERS } from "@/lib/fixtures";
 import { explain, svc } from "@/lib/svc";
 import { usePoll } from "@/lib/usePoll";
@@ -15,7 +16,7 @@ const OWNERS: PhoneOwner[] = [
 ];
 
 type Action = NonNullable<Message["actions"]>[number];
-interface Snapshot { inboxes: Record<string, Message[]>; orders: Order[]; sample: boolean; problem?: string }
+interface Snapshot { inboxes: Record<string, Message[]>; orders: Order[]; delivery: DeliveryInfo; sample: boolean; problem?: string }
 
 export default function FamilyPhones() {
   const [toasts, setToasts] = useState<Record<string, string>>({});
@@ -24,19 +25,21 @@ export default function FamilyPhones() {
   const sampleRef = useRef(false);
 
   const snap = usePoll<Snapshot>(async (signal) => {
-    const [inboxes, orders] = await Promise.all([
+    const [inboxes, orders, delivery] = await Promise.all([
       Promise.all(OWNERS.map((o) => svc("family", `/messages?memberId=${o.id}`, { schema: z.array(MessageSchema), signal }))),
       svc("money", "/orders?seniorId=sen_rose", { schema: z.array(OrderSchema), signal }),
+      loadDelivery(signal),
     ]);
     const failed = inboxes.find((r) => !r.ok);
     if (failed && !failed.ok) {
       sampleRef.current = true;
-      return { inboxes: SAMPLE_MESSAGES, orders: SAMPLE_ORDERS, sample: true, problem: explain(failed) };
+      return { inboxes: SAMPLE_MESSAGES, orders: SAMPLE_ORDERS, delivery: { liveCheckout: false, byOrderId: {} }, sample: true, problem: explain(failed) };
     }
     sampleRef.current = false;
     return {
       inboxes: Object.fromEntries(OWNERS.map((o, i) => [o.id, (inboxes[i] as { data: Message[] }).data])),
       orders: orders.ok ? orders.data : [],
+      delivery,
       sample: false,
       problem: orders.ok ? undefined : `Fraud details unavailable: ${explain(orders)}`,
     };
@@ -106,6 +109,7 @@ export default function FamilyPhones() {
             owner={o}
             messages={snap?.inboxes[o.id]}
             ordersById={ordersById}
+            delivery={snap?.delivery}
             onAct={onAct(o)}
             onReply={onReply(o)}
             toast={toasts[o.id] || undefined}
