@@ -21,7 +21,7 @@ scenario("E2E 5 · “keep this between us” never reaches family", async (t) =
 
   await t.step("voice", "simulate-inbound accepts the privacy script", () => voice.simulateInbound(PRIVACY.script));
 
-  await t.step("money", "the grocery order in the same call is paid (so post-call hooks run)", () =>
+  await t.step("voice", "the grocery order in the same call is confirmed and paid (so post-call hooks run)", () =>
     waitFor("paid order", async (observe) => {
       const fresh = newSince(await money.orders(), ordersBefore);
       observe(fresh.map(summarizeOrder));

@@ -8,7 +8,14 @@ _Last updated: integration-v2, Part 1 task 1 (contracts) done._
   - D11 `CallEnded.scheduledCallId?`, `OrderRequest.scheduledFor?`, `Circle.seniorHints`, `CallJoin`, `VoiceNote`; D1–D4/D8 bodies (`OkResponse`, `TimeTravelRequest`, `FireDueRequest`, `DemoCall`, `SimulateVerification*`, `ScheduledCallDue`, `HoldResolveRequest`)
   - D14 `Quote`, `QuoteLine`, `QuoteRequest`, `DeliveryOrder`, `DeliveryStatus`, `DeliveryHealth`, `DeliveryStatusEvent`, request bodies
   - Drift guard re-tested by planting drift (caught). Schemas validated against the live voice/money/family/delivery responses.
-- [ ] 2. E2E: addendum endpoints, fix E2E 4 order selection, extend E2E 1 through delivery, refuse unless delivery is `mock`, delivery in the fake stack
+- [x] **2. E2E** (self-test 13/13, 10 runs in a row; 9/9 planted bugs caught and routed)
+  - Addendum endpoints: new `E2E 0` resets family → money → delivery → voice (D1, one scenario per owner); D2 `fire-due` and D3 `/demo/calls` + `simulate-verification` (`{ speaker, text }[]`, also fixes web's `/demo` payload) are now required, not "proposed"; D5 payloads are schema-checked (`MESSAGE_ACTIONS`).
+  - **E2E 4 fixed:** selects only a `gift` order to `mem_lisa` created after the scenario started. The fake stack now injects a late E2E-3-style scam order; the old test reported "FALSE HOLD" on it, the new one passes.
+  - **E2E 1 extended:** paid → delivery `dry_run_complete` (mock) → `/demo/advance {to:"delivered"}` → family "arrived" message → money `GET /orders/:id` shows `fulfilment.delivery.status = delivered`.
+  - "Order drafted" vs. "Rose's yes confirms it (D16)" are separate steps, so a stuck `approved` order is routed to voice, not money.
+  - **Refuses to run** unless delivery `/health` is `provider: "mock"`, `liveCheckout: false` (planted `live-provider` bug → "REFUSING TO RUN").
+  - D16 guard test: every purchase script ends with a line that confirms under the addendum rule.
+  - Fake stack: delivery mock on :5004, `/demo/reset` everywhere, money `GET /orders/:id` + `fulfilment`.
 - [ ] 3. Demo reset chain: family → money → delivery → voice
 - [ ] 4. Web delivery UI: status/ETA/tracking, DRY RUN badge, `unmatchedItems`
 - [ ] 5. Web demo panel DoorDash controls (quote table; guarded "Place real order" via the proxy)
@@ -128,5 +135,15 @@ Each one is needed for a checkpoint item. The E2E suite already calls the propos
 - E2E 5's "whole inbox is clean" step fails permanently after any real leak, until CCR-01's reset exists. That's on purpose: a leak is a leak.
 
 ## Integration report (latest E2E run)
+**2026-09-26, live services on `claire` (= main + task 1–2), delivery on mock: 6/13 pass.** Not filed in owners' status files yet (Part 1 task 7 does that after the next checkpoint merge); every failure matches a task already assigned in `docs/INTEGRATION-REPORT.md`:
+| Scenario | Routed to | Symptom | Their task |
+|---|---|---|---|
+| E2E 0 money/voice reset | Agent 2 / Agent 1 | `POST /demo/reset` → 404 | A2 task 8, A1 (D1) |
+| E2E 1, 4, 5 | Agent 1 | order stays `approved`; Rose's "yes" isn't taken as confirmation | A1 task 1 (D16) |
+| E2E 2 | Agent 3 | proposal buttons use `schedule_accept` with no `slot` (D5 wants `accept_slot` + `{ proposalId, slotId, slot }`) | A3 (D5) |
+| E2E 3 | Agent 3 (report) | no `fraud_card`. Root cause per the integration report: money with `MOCK=1` never sends events to family | A2 task 1 (D15) |
+Passing: D16 guard, family + delivery reset.
+
+### Earlier runs
 Run against the Phase 0 skeletons, at H3: **0/5 pass, as expected.** Each scenario stops at its first snapshot call with `404 NOT_FOUND` (for example `GET money /orders`), routed to Agent 2 or Agent 3. No bugs are filed yet, because the stubs are due at H8.
 Self-test against the fake stack: **5/5, 10 runs in a row.**

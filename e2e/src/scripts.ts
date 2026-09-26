@@ -2,6 +2,8 @@
  * Rose's lines for POST voice /demo/simulate-inbound. The /demo panel imports these
  * same arrays, so every button runs a script the E2E suite has proven.
  */
+import type { SimulateVerificationRequest } from "@care-circle/contracts";
+
 export interface DemoScript {
   id: string;
   label: string;
@@ -77,10 +79,10 @@ export const confirmSlotScript = (roseLocal: string): string[] => [
   `Yes, ${roseLocal} sounds lovely. Please set it up.`,
 ];
 
-/** The real Danny, answering his stored number on the verification call (proposed CCR-04). */
-export const DANNY_CANCELS: string[] = [
-  "Grandma, that wasn't me! I'm totally fine.",
-  "Please cancel it. Don't buy any gift cards.",
+/** The real Danny, answering his stored number on the verification call (D3 script shape). */
+export const DANNY_CANCELS: SimulateVerificationRequest["script"] = [
+  { speaker: "member", text: "Grandma, that wasn't me! I'm totally fine." },
+  { speaker: "member", text: "Please cancel it. Don't buy any gift cards." },
 ];
 
 /**
