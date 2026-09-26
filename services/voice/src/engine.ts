@@ -312,16 +312,37 @@ export class Engine {
     name: string,
     args: Record<string, unknown>,
   ): Promise<unknown> {
-    if (name === "revise_mock_order" && this.reasoner instanceof MockReasoner) {
+    if (
+      ["revise_mock_order", "repeat_mock_order"].includes(name) &&
+      this.reasoner instanceof MockReasoner
+    ) {
+      if (s.privateStart)
+        return {
+          speak:
+            "This part is private. Please start a new call to place an order.",
+        };
       const orders = await this.deps.call<Order[]>(
         "money",
         "GET",
         `/orders?seniorId=${s.seniorId}`,
       );
       const previous = orders
-        .filter((o) => o.seniorId === s.seniorId && o.status === "approved")
+        .filter(
+          (o) =>
+            o.id === s.lastOrderId &&
+            o.seniorId === s.seniorId &&
+            o.status === "approved",
+        )
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
       assert(previous, "NO_DRAFT", "Please tell me the complete list again.");
+      if (name === "repeat_mock_order") {
+        const pending: Pending = previous.fulfilment?.unmatchedItems.length
+          ? { kind: "unmatched", order: previous }
+          : { kind: "order", order: previous };
+        s.pending = pending;
+        s.pendingDelivered = false;
+        return { speak: this.pendingSummary(pending) };
+      }
       const item = z.string().min(1).max(200).parse(args.item);
       return this.tool(s, "place_order", {
         ...previous.request,
@@ -464,6 +485,7 @@ export class Engine {
         "WRONG_SENIOR",
         "Order belongs to another senior.",
       );
+      s.lastOrderId = order.id;
       if (order.status === "held") {
         const circle = await this.deps.call<Circle>(
           "family",

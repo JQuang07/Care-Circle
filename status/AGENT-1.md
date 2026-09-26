@@ -4,6 +4,8 @@ Updated: 2026-09-26. Branch: `jayden`, synced with integration-v2 on main.
 
 ## Integration follow-up
 
+- Integration follow-up: mock grocery lists now retain named milk/bread/eggs/bananas items; the full grocery script re-reads after its garden-news turn and needs fresh playback; mock revisions are bound to the current call. 49/49 tests and voice typecheck pass.
+
 - Optional order-status tool complete: newest senior-owned order, actual ETA/status, explicit dry-run wording. Default Muse model aligned to muse-spark-1.3. 47/47 voice tests and whole-workspace typecheck pass.
 
 - D7 complete: birthday gifts for Mia bind to verified parent mem_lisa; statedReason preserves her name. Worded demo amount ($25) and natural gift confirmation covered. 46/46 tests and typecheck pass.

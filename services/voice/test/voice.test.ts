@@ -756,3 +756,38 @@ test("order status uses newest senior-owned order and actual ETA", async () => {
     /No real delivery/,
   );
 });
+
+test("full grocery demo preserves the spoken basket and re-reads after small talk", async () => {
+  const f = await fixture();
+  for (const text of [
+    "Hi, it's Rose. I'd like to order my groceries from FreshMart, please.",
+    "A gallon of milk, a loaf of wheat bread, a dozen eggs, and some bananas.",
+    "Oh, and my tomatoes finally came in this week. The first ones of the summer!",
+    "Yes, that's everything. Please go ahead and order it.",
+  ]) {
+    await f.engine.turn(f.s, text);
+    await f.engine.delivered(f.s);
+  }
+  const order = f.deps.orders.find((o) => o.id === f.s.lastOrderId)!;
+  assert.equal(order.status, "paid");
+  assert.deepEqual(
+    order.request.items.map((i) => i.name),
+    ["milk", "wheat bread", "eggs", "bananas"],
+  );
+});
+test("mock item additions remain bound to this call's draft", async () => {
+  const f = await fixture();
+  await draft(f);
+  const first = f.s.lastOrderId;
+  const other = await f.engine.create("sen_rose");
+  await f.engine.turn(other, "milk");
+  await f.engine.turn(f.s, "Yes, but add eggs");
+  assert.equal(
+    f.deps.orders.find((o) => o.id === first)!.request.items.length,
+    3,
+  );
+  assert.equal(
+    f.deps.orders.find((o) => o.id === f.s.lastOrderId)!.request.items.length,
+    4,
+  );
+});

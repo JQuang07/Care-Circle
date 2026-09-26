@@ -177,6 +177,13 @@ export class MockReasoner implements Reasoner {
       s.transcript.filter((t) => t.speaker === "senior").at(-1)?.text || "";
     if (/where.*order|order status|out for delivery/i.test(text))
       return { actions: [{ name: "get_order_status", args: {} }] };
+    // This fixture line is conversational news, not an addition to the order.
+    // Re-read the current quote; even in mock mode, a fresh playback is required.
+    if (
+      s.lastOrderId &&
+      /^Oh, and my tomatoes finally came in this week[.!]/i.test(text)
+    )
+      return { actions: [{ name: "repeat_mock_order", args: {} }] };
     // Mock revisions still draft through money and need a fresh read-back.
     const addition = /\badd\s+(.+?)[.!]*$/i.exec(text);
     if (addition) {
@@ -221,7 +228,17 @@ export class MockReasoner implements Reasoner {
                   ? undefined
                   : "Medicare caller",
               items: groceries
-                ? [{ name: "milk, eggs, and bread", qty: 1 }]
+                ? /\b(milk|bread|eggs|bananas)\b/i.test(text)
+                  ? [
+                      ...text.matchAll(
+                        /\b(whole milk|milk|wheat bread|bread|eggs|bananas)\b/gi,
+                      ),
+                    ].map((m) => ({ name: m[1]!.toLowerCase(), qty: 1 }))
+                  : [
+                      { name: "milk", qty: 1 },
+                      { name: "eggs", qty: 1 },
+                      { name: "bread", qty: 1 },
+                    ]
                 : [{ name: gift ? "gift card" : "requested payment", qty: 1 }],
               amountCents: amount
                 ? Math.round(Number(amount[1]) * 100)

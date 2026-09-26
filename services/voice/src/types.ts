@@ -123,6 +123,7 @@ export interface Session {
   privateStart?: string;
   pending?: Pending;
   pendingDelivered?: boolean;
+  lastOrderId?: string;
   twilioSid?: string;
   streamToken?: string;
   verification?: {
