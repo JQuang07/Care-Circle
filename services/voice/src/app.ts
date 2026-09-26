@@ -286,7 +286,10 @@ export async function createApp(
   );
   app.post("/webhooks/scheduled-call-due", async (request) => {
     const call = scheduledCall.parse(request.body);
-    await store.enqueue(`due:${call.id}`, call);
+    const phase =
+      call.phase ??
+      z.enum(["reminder", "due"]).parse(request.headers["x-cc-phase"] ?? "due");
+    await store.enqueue(`due:${call.id}:${phase}`, { ...call, phase });
     return { ok: true };
   });
   app.post("/twilio/voice", async (request, reply) => {
@@ -470,7 +473,8 @@ export async function createApp(
           const call = scheduledCall.parse(job.payload);
           await phone.outbound({
             seniorId: call.seniorId,
-            purpose: "scheduled_family_call",
+            purpose:
+              call.phase === "reminder" ? "reminder" : "scheduled_family_call",
             scheduledCallId: call.id,
             roomName: call.roomName,
           });

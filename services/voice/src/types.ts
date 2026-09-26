@@ -85,6 +85,7 @@ export const scheduledCall = z.object({
   roomJoinUrl: z.url(),
   seniorJoin: z.enum(["phone_dialout", "tablet"]),
   recurring: z.literal("weekly").optional(),
+  phase: z.enum(["reminder", "due"]).optional(),
   status: z.enum(["scheduled", "ringing", "live", "done", "missed"]),
 });
 export type ScheduledCall = z.infer<typeof scheduledCall>;

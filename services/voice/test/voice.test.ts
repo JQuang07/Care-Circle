@@ -566,3 +566,50 @@ test("D3 simulation binds member, uses verbal resolution and rejects high-risk r
     method: "verbal_on_verification_call",
   });
 });
+
+test("D4 body phase wins over header and reminders do not consume due dispatch", async (t) => {
+  const { app, store, tick } = await createApp(settings());
+  t.after(() => app.close());
+  const payload = {
+    id: "sch_phase",
+    proposalId: "prop_demo",
+    seniorId: "sen_rose",
+    memberIds: ["mem_danny"],
+    startUtc: "2026-09-27T20:00:00Z",
+    roomName: "demo-room",
+    roomJoinUrl: "https://example.com/call/demo",
+    seniorJoin: "phone_dialout",
+    status: "scheduled",
+  };
+  const post = (body: object, phase: string) =>
+    app.inject({
+      method: "POST",
+      url: "/webhooks/scheduled-call-due",
+      headers: { "x-cc-secret": secret, "x-cc-phase": phase },
+      payload: body,
+    });
+  assert.equal(
+    (await post({ ...payload, phase: "reminder" }, "due")).statusCode,
+    200,
+  );
+  await tick();
+  assert.equal([...store.sessions.values()][0]?.purpose, "reminder");
+  assert.equal((await post(payload, "reminder")).statusCode, 200);
+  await tick();
+  assert.equal(store.sessions.size, 1);
+  assert.equal(
+    (await post({ ...payload, phase: "due" }, "reminder")).statusCode,
+    200,
+  );
+  await tick();
+  assert.equal(store.sessions.size, 2);
+  assert.ok(
+    [...store.sessions.values()].some(
+      (s) => s.purpose === "scheduled_family_call",
+    ),
+  );
+  assert.equal(
+    (await post({ ...payload, phase: "invalid" }, "due")).statusCode,
+    400,
+  );
+});

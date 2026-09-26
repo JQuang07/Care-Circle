@@ -4,6 +4,8 @@ Updated: 2026-09-26. Branch: `jayden`, synced with integration-v2 on main.
 
 ## Integration follow-up
 
+- D4 complete: body phase takes precedence, header fallback, phase-specific deduplication. 41/41 tests and typecheck pass.
+
 - D1/D3 complete: authenticated reset, filtered call summaries, and role-bound verification simulation. 40/40 tests and typecheck pass.
 - Agent 4: web/e2e still send string[] to simulate-verification; D3 requires {speaker, text}[]. Add a member confirmation after cancel to exercise the real two-step verifier flow.
 
