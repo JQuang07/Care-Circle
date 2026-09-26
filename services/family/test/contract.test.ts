@@ -1,4 +1,5 @@
 import { describe, expect, it, beforeEach } from "vitest";
+import { loadConfig } from "../src/config.js";
 import { json, makeCtx, type TestCtx } from "./helpers.js";
 
 let ctx: TestCtx;
@@ -153,5 +154,20 @@ describe("moments + webhooks", () => {
     });
     expect(r.status).toBe(200);
     expect(r.body).toEqual({ ok: true });
+  });
+});
+
+describe("config", () => {
+  it("ignores PORT (shared .env); only FAMILY_PORT moves family off 4003", () => {
+    const saved = { PORT: process.env.PORT, FAMILY_PORT: process.env.FAMILY_PORT };
+    try {
+      process.env.PORT = "5999";
+      delete process.env.FAMILY_PORT;
+      expect(loadConfig().port).toBe(4003);
+      process.env.FAMILY_PORT = "4103";
+      expect(loadConfig().port).toBe(4103);
+    } finally {
+      for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+    }
   });
 });

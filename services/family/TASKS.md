@@ -70,7 +70,8 @@ Legend: `[x]` done · `[ ]` open · **DoD** = definition-of-done item.
 - [x] 3. **D2 + D4:** `POST /demo/fire-due { scheduledCallId }`; `phase: "reminder" | "due"` in the `scheduled-call-due` body (keep `X-CC-Phase`)
 - [x] 4. **D6/D7/D11/D12:** `everAskedForMoney: boolean`; Mia `birthday: "10-14"`; join/proposal/seniorHints/voice-notes endpoints; `/moments?week=` ISO week, default = current week in Rose's tz
 - [x] 5. `POST /webhooks/delivery-status` (secret, idempotent by `deliveryId` + `status`): dry run → Lisa; placed/picked_up → ETA note; delivered → circle + voice `/calls/outbound`; failed → verifiers
-- [ ] 6. Config: `FAMILY_PORT ?? 4003` only (no `PORT`); `contracts-local.ts` → `@care-circle/contracts` once the addendum types are published
+- [x] 6a. Config: `FAMILY_PORT ?? 4003` only (no `PORT`)
+- [ ] 6b. `contracts-local.ts` → `@care-circle/contracts`: **waiting**, the addendum types are only on `origin/claire` so far
 - [ ] 7. Postgres test runs against Docker's database
 ### Part 2 · Delivery upkeep
 - [ ] `pnpm --filter @care-circle/delivery test` green (15, every safety gate); switch `src/types.ts` to `@care-circle/contracts` once `Quote`, `QuoteLine`, `DeliveryOrder` are there

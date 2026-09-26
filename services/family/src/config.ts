@@ -35,7 +35,8 @@ export interface Config {
 
 export function loadConfig(overrides: Partial<Config> = {}): Config {
   const base: Config = {
-    port: Number(env.FAMILY_PORT ?? env.PORT ?? 4003),
+    // Never PORT: the root .env is shared by every service (COMMON-SETUP).
+    port: Number(env.FAMILY_PORT ?? 4003),
     host: env.FAMILY_HOST ?? "0.0.0.0",
     mock: env.MOCK === "1" || env.MOCK === "true",
     databaseUrl: env.DATABASE_URL || undefined,

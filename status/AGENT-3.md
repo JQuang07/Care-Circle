@@ -20,12 +20,14 @@ Also owns `services/delivery` on **:4004** (D14). Run everything with `pnpm dev`
 - **Integration v2 · task 3 (D2 + D4):** `POST /demo/fire-due { scheduledCallId }` (secret) sets `ringing` and sends `scheduled_call.due` now. The due body now carries `phase: "reminder" | "due"`, and the `X-CC-Phase` header stays.
 - **Integration v2 · task 4 (D6/D7/D11/D12):** `everAskedForMoney` is a `boolean`; Mia is seeded with `birthday: "10-14"`. `call.ended` matches by `scheduledCallId` when voice sends it. `/moments` defaults to the current ISO week in Rose's time zone (`?week=2026-W39` or any `YYYY-MM-DD`; `last7` is still accepted). The join, proposal, `seniorHints` and voice-notes endpoints were already live.
 - **Integration v2 · task 5:** `POST /webhooks/delivery-status` (secret, idempotent by `deliveryId` + `status`). `dry_run_complete` goes to Lisa; `placed`/`picked_up` send an ETA note (with a tracking button when there's a URL) to the circle; `delivered` goes to the circle plus `POST voice /calls/outbound { purpose: "delivery_arrived", orderId }` (a 400 from voice is ignored); `failed` goes to verifiers with `failureReason`. Delivery events now also carry `seniorId` and `storeName`. Without them, family looks up `GET delivery /orders/:id`.
+- **Integration v2 · task 6 (part):** config reads only `FAMILY_PORT ?? 4003`; `PORT` is ignored.
 
 ## In progress
 - Integration v2 tasks 2–7 (`docs/agents/agent-3-family.md` Part 1), then delivery upkeep and live E2E. Checklist: `services/family/TASKS.md` Phase 5.
 
 ## Blocked on
-- Nothing. (Postgres fixed: the native Windows services are stopped and Docker's database serves :5432.)
+- **Task 6, contracts swap:** the addendum types (`everAskedForMoney: boolean`, `birthday`, `ScheduledCallDue.phase`, `Quote`/`DeliveryOrder`) are on `origin/claire` but not on `main`, so `services/family/src/contracts-local.ts` and `services/delivery/src/types.ts` stay until Agent 4's contracts merge.
+- Nothing else. (Postgres fixed: the native Windows services are stopped and Docker's database serves :5432.)
 
 ## CONTRACT CHANGE REQUESTS
 1. **CCR-1 (additive endpoints on family).** Please add to CONTRACTS §4:
