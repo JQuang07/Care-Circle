@@ -1,5 +1,43 @@
 # Agent 4 · Integrator + Web — status
-_Last updated: Phase 0 hand-off (H3)._
+_Last updated: 2026-09-26. Part 1 done (tasks 1–8); Part 2 run; Part 3 waiting on A1/A2/A3 Part 1 fixes._
+
+## Part 1 · integration-v2 checklist (docs/agents/agent-4-integrator-web.md)
+- [x] **1. Contracts package:** addendum v1.0.2 applied to `packages/contracts` (types + zod + drift guard + self-test, 28/28).
+  - D5 action payloads per kind (`MESSAGE_ACTIONS`), `MessageActRequest` with the four allowed client extras
+  - D6 `everAskedForMoney: boolean` · D7 `Dependent.birthday?` + `Senior`/`Member`/`Circle` shapes · D9 `Order.fulfilment?`
+  - D11 `CallEnded.scheduledCallId?`, `OrderRequest.scheduledFor?`, `Circle.seniorHints`, `CallJoin`, `VoiceNote`; D1–D4/D8 bodies (`OkResponse`, `TimeTravelRequest`, `FireDueRequest`, `DemoCall`, `SimulateVerification*`, `ScheduledCallDue`, `HoldResolveRequest`)
+  - D14 `Quote`, `QuoteLine`, `QuoteRequest`, `DeliveryOrder`, `DeliveryStatus`, `DeliveryHealth`, `DeliveryStatusEvent`, request bodies
+  - Drift guard re-tested by planting drift (caught). Schemas validated against the live voice/money/family/delivery responses.
+- [x] **2. E2E** (self-test 13/13, 10 runs in a row; 9/9 planted bugs caught and routed)
+  - Addendum endpoints: new `E2E 0` resets family → money → delivery → voice (D1, one scenario per owner); D2 `fire-due` and D3 `/demo/calls` + `simulate-verification` (`{ speaker, text }[]`, also fixes web's `/demo` payload) are now required, not "proposed"; D5 payloads are schema-checked (`MESSAGE_ACTIONS`).
+  - **E2E 4 fixed:** selects only a `gift` order to `mem_lisa` created after the scenario started. The fake stack now injects a late E2E-3-style scam order; the old test reported "FALSE HOLD" on it, the new one passes.
+  - **E2E 1 extended:** paid → delivery `dry_run_complete` (mock) → `/demo/advance {to:"delivered"}` → family "arrived" message → money `GET /orders/:id` shows `fulfilment.delivery.status = delivered`.
+  - "Order drafted" vs. "Rose's yes confirms it (D16)" are separate steps, so a stuck `approved` order is routed to voice, not money.
+  - **Refuses to run** unless delivery `/health` is `provider: "mock"`, `liveCheckout: false` (planted `live-provider` bug → "REFUSING TO RUN").
+  - D16 guard test: every purchase script ends with a line that confirms under the addendum rule.
+  - Fake stack: delivery mock on :5004, `/demo/reset` everywhere, money `GET /orders/:id` + `fulfilment`.
+- [x] **3. Demo reset chain:** "Reset all data" calls `/demo/reset` on family → money → delivery → voice (`RESET_ORDER` in `lib/services.ts`), tries every service even if one fails, and names each failure. Delivery added to the web proxy (health, orders, reset; `/demo/advance` stays blocked) and the `/demo` health strip. Verified through the proxy: family + delivery `{ ok: true }`; money + voice 404 until their D1 task lands.
+- [x] **4. Web delivery UI:** `components/DeliveryStatus.tsx` + `lib/delivery.ts`. Shows store, plain-words status, ETA (hidden once delivered/failed), "Track it" link, and "Store didn't have: …" (`fulfilment.unmatchedItems`) on the dashboard's Recent orders and on the phones' `add_to_order` card. Status comes from delivery `/orders` (freshest), falling back to money's `order.fulfilment.delivery`. **DRY RUN** badge on every delivery unless delivery `/health` says `liveCheckout: true` (unreachable counts as dry run). Verified in a real browser against a live `dry_run_complete` delivery; the phone card can't be shown live until money sends family events (A2 D15) and fills `fulfilment` (A2 D9), so the sample data now carries a delivery too.
+- [x] **5. Web demo panel DoorDash controls** (`components/DoorDashPanel.tsx`): provider line with DRY RUN / "LIVE CHECKOUT ARMED"; "Quote groceries (DoorDash)" shows the quote table (matched, "Which one?" options for ambiguous lines, not found, subtotal, fees, total). **"Place real order"** is rendered only when delivery `/health` is `doordash_thirdparty` + `liveCheckout: true`, only for `awaiting_live_checkout` deliveries; shows store and amount; needs a name and the typed `PLACE REAL ORDER` (paste blocked). The web proxy re-checks the phrase **server-side**, forwards only `{ confirmedBy }`, and adds `X-CC-Secret`; delivery allowlist now has `POST /quote` and `/orders/:id/checkout`.
+  - Verified in Chrome: on mock, no button (and delivery answers `LIVE_CHECKOUT_DISABLED` even to a full confirmation). Against a fake armed delivery on a throwaway web instance: button disabled until name + exact phrase; click → the fake received `{"confirmedBy":"Claire"}` with the secret; the secret never appeared in the page or any browser request. Proxy refuses a missing/wrong phrase (403) or missing name (400).
+- [x] **6. `/call/:id` joins LiveKit** (`@livekit/components-react` `VideoConference`). `?member=mem_x` (D5 `roomJoinUrl`) picks who you are; without it, a "Who's joining?" picker lists the call's members. Credentials come from family `GET /schedule/calls/:id/join?memberId=` (D11) through the proxy (added to the family allowlist). Mock credentials (`ws://fake-livekit` / `fake.` token) show a labeled "Simulated video room" instead of trying to connect; an uninvited member sees "isn't invited"; a failed connect shows the server URL and error; leaving shows "Rejoin".
+  - Verified in Chrome (fake camera) against a throwaway `livekit-server --dev` container on :7880 (the `.env` devkey/secret): a real call made through family's contract endpoints; Lisa and Danny both joined and saw each other's tiles, Mark was refused, Leave → Rejoin.
+  - Note: no LiveKit server runs by default (not in `docker-compose.yml`), so real video needs one started by hand or LiveKit Cloud.
+- [x] **7. Integration duty (recurring; tooling ready):** after each checkpoint merge run `pnpm e2e`, then `pnpm e2e:file` (dry run) → `pnpm e2e:file --write`. `scripts/file-bugs.ts` files each failure under `## BUGS FROM INTEGRATION` in the owner's status file (voice → A1, money → A2, family/delivery → A3) with expected/actual and the last request/response, replaces the "none yet" placeholder, never duplicates an entry (HTML-comment marker), and touches nothing outside that heading. web/contract failures are listed, not filed. Tested with a planted bug (write, re-run = 0 new, reverted).
+  - Not filed yet: no checkpoint merge has happened, and today's 7 failures (table below) are all tasks already assigned in the runbooks. First real filing: after the Part-1 checkpoint merge.
+- [x] **8. Final README:** architecture (5 services + web, Mermaid diagram and table, grocery flow), how to run, pages, a mock-vs-real table (D15 semantics), the plain "DoorDash is an unofficial third-party integration" section (dry run by default, one human-confirmed live order at most), tests, layout and team. Claims checked against each service README. Re-check the mock-vs-real rows at the H62 freeze if any provider changes.
+
+## Part 2 · Verify (2026-09-26, `pnpm dev` running, delivery on mock)
+- `pnpm health`: **5 green** (voice, money, family, delivery, web).
+- `pnpm e2e:selftest 10`: **13/13, 10 runs in a row**.
+- `pnpm e2e` (live): **6/13**. Same 7 failures as the integration report, all owned by other agents (table under "Integration report").
+- Browser, `/demo`: health strip shows all four services (mock). **"Place real order" is not rendered** (provider mock). "Grocery happy path" starts the call, but the order stays `approved` (voice doesn't take Rose's "yes" yet, A1 D16), so there's no paid order, no delivery, and no `add_to_order` for Lisa yet. "Reset all data" → "Reset 2 of 4": family + delivery reset; money + voice 404 (their D1).
+
+## Part 3 · "Service is up" checklist
+- [x] `pnpm health` shows 5 green; `pnpm typecheck` and `pnpm build:web` pass.
+- [ ] E2E 1–5 pass against the live services (delivery on mock); the self-test passes 10 runs in a row. Self-test ✅ 10/10. Live ❌ 6/13, blocked on A1 D16 + D1 reset, A2 D15 events + D1 reset, A3 D5 `accept_slot` payloads.
+- [x] The DRY RUN badge shows; the live button is hidden unless the real provider + live flag are on, and needs the typed phrase. Verified in Chrome on mock (hidden) and against a fake armed delivery (shown, disabled until name + exact phrase, proxy re-checks the phrase and adds the secret).
+- [ ] Reset clears all 5 services. Web resets family → money → delivery → voice; family + delivery clear; **money and voice 404** until their D1 `/demo/reset` lands.
 
 ## Done
 - **Monorepo:** pnpm workspace (`packages/contracts`, `services/{voice,money,family}`, `apps/web`, `e2e`), Node ≥22.12, pnpm 10 pinned.
@@ -113,5 +151,15 @@ Each one is needed for a checkpoint item. The E2E suite already calls the propos
 - E2E 5's "whole inbox is clean" step fails permanently after any real leak, until CCR-01's reset exists. That's on purpose: a leak is a leak.
 
 ## Integration report (latest E2E run)
+**2026-09-26, live services on `claire` (= main + task 1–2), delivery on mock: 6/13 pass.** Not filed in owners' status files yet (Part 1 task 7 does that after the next checkpoint merge); every failure matches a task already assigned in `docs/INTEGRATION-REPORT.md`:
+| Scenario | Routed to | Symptom | Their task |
+|---|---|---|---|
+| E2E 0 money/voice reset | Agent 2 / Agent 1 | `POST /demo/reset` → 404 | A2 task 8, A1 (D1) |
+| E2E 1, 4, 5 | Agent 1 | order stays `approved`; Rose's "yes" isn't taken as confirmation | A1 task 1 (D16) |
+| E2E 2 | Agent 3 | proposal buttons use `schedule_accept` with no `slot` (D5 wants `accept_slot` + `{ proposalId, slotId, slot }`) | A3 (D5) |
+| E2E 3 | Agent 3 (report) | no `fraud_card`. Root cause per the integration report: money with `MOCK=1` never sends events to family | A2 task 1 (D15) |
+Passing: D16 guard, family + delivery reset.
+
+### Earlier runs
 Run against the Phase 0 skeletons, at H3: **0/5 pass, as expected.** Each scenario stops at its first snapshot call with `404 NOT_FOUND` (for example `GET money /orders`), routed to Agent 2 or Agent 3. No bugs are filed yet, because the stubs are due at H8.
 Self-test against the fake stack: **5/5, 10 runs in a row.**

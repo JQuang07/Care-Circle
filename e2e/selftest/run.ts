@@ -1,5 +1,5 @@
 /**
- * pnpm e2e:selftest — boots the fake stack on 5001–5003, runs the real E2E suite
+ * pnpm e2e:selftest — boots the fake stack on 5001–5004, runs the real E2E suite
  * against it N times, and shuts it down. Green here means the TESTS are sound; only
  * then does a red run against the real services mean a service bug.
  */
@@ -11,7 +11,7 @@ await new Promise<void>((resolve, reject) => {
   fake.stdout.on("data", (d: Buffer) => d.toString().includes("fake stack up") && resolve());
   fake.on("exit", (c) => reject(new Error(`fake stack exited (${c})`)));
 });
-const env = { ...process.env, VOICE_URL: "http://localhost:5001", MONEY_URL: "http://localhost:5002", FAMILY_URL: "http://localhost:5003" };
+const env = { ...process.env, VOICE_URL: "http://localhost:5001", MONEY_URL: "http://localhost:5002", FAMILY_URL: "http://localhost:5003", DELIVERY_URL: "http://localhost:5004" };
 let code = 0;
 for (let i = 1; i <= runs && code === 0; i++) {
   console.log(`\n━━━ selftest run ${i}/${runs} ━━━`);

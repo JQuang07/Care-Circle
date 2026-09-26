@@ -1,10 +1,12 @@
 /**
- * Before: fail fast if a service is down (one clear line, not five timeouts).
+ * Before: fail fast if a service is down (one clear line, not five timeouts), and
+ * refuse to run unless delivery is on the mock provider, so E2E can never reach DoorDash.
  * After: turn failure records into e2e/reports/latest.md, grouped by owning agent,
  * ready to paste under `## BUGS FROM INTEGRATION`.
  */
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { DeliveryHealthSchema } from "@care-circle/contracts";
 import { BASE } from "./http";
 import { REPORT_DIR, RECORDS_FILE, type FailureRecord, type Owner } from "./report";
 
@@ -12,6 +14,7 @@ const STATUS_FILE: Record<Owner, string> = {
   voice: "status/AGENT-1.md",
   money: "status/AGENT-2.md",
   family: "status/AGENT-3.md",
+  delivery: "status/AGENT-3.md (delivery)",
   web: "status/AGENT-4.md",
   contract: "the human coordinator (CONTRACT CHANGE REQUEST)",
 };
@@ -30,6 +33,14 @@ export async function setup() {
     }
   }
   if (down.length) throw new Error(`E2E needs all services up. Run \`pnpm dev\` first.\n  ${down.join("\n  ")}`);
+
+  // Rule 8: E2E places orders. It must only ever talk to the mock provider.
+  const health = DeliveryHealthSchema.safeParse(await (await fetch(`${BASE.delivery}/health`)).json());
+  if (!health.success || health.data.provider !== "mock" || health.data.liveCheckout)
+    throw new Error(
+      "REFUSING TO RUN: E2E needs delivery on DELIVERY_PROVIDER=mock with DOORDASH_LIVE_CHECKOUT=0. " +
+        `delivery /health said: ${JSON.stringify(health.success ? health.data : health.error.issues)}`,
+    );
 }
 
 const fence = (x: unknown) => "```json\n" + (JSON.stringify(x, null, 2) ?? "(empty)").slice(0, 2500) + "\n```";

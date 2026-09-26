@@ -1,14 +1,16 @@
 /**
- * TESTS THE TESTS. An in-memory stand-in for voice, money, and family that follows
- * CONTRACTS.md plus the proposed CCRs, so `pnpm e2e:selftest` can prove each scenario
+ * TESTS THE TESTS. An in-memory stand-in for voice, money, family, and delivery that follows
+ * CONTRACTS.md plus CONTRACTS-ADDENDUM.md, so `pnpm e2e:selftest` can prove each scenario
  * CAN pass before we blame a real service. It is not a reference implementation:
  * keyword matching stands in for Muse, and nothing here is used by the product.
- * Runs on 5001–5003 so it never collides with the real services on 4001–4003.
+ * Runs on 5001–5004 so it never collides with the real services on 4001–4004.
  */
 import Fastify, { type FastifyInstance } from "fastify";
-import type { Hold, Message, Order, OrderRequest, Proposal, ScheduledCall, Slot } from "@care-circle/contracts";
+import type {
+  DeliveryOrder, DeliveryStatus, Hold, Message, Order, OrderRequest, Proposal, ScheduledCall, SimulateVerificationRequest, Slot,
+} from "@care-circle/contracts";
 
-const PORTS = { voice: 5001, money: 5002, family: 5003 };
+const PORTS = { voice: 5001, money: 5002, family: 5003, delivery: 5004 };
 /** Mutation testing: FAKE_BUG plants one known bug so selftest can prove the suite catches it. */
 const BUG = process.env.FAKE_BUG ?? "";
 let seq = 0;
@@ -56,9 +58,39 @@ function placeOrder(req: OrderRequest): Order {
     o.status = "paid";
     o.receiptUrl = `https://receipts.example/${o.id}`;
     family.onPaid(o);
+    if (o.request.type === "groceries") delivery.fulfil(o);
   }
   return o;
 }
+
+/** A scam order that lands late, stamped before the current scenario began (the E2E 4 regression). */
+function strayLateScam() {
+  const req: OrderRequest = { seniorId: "sen_rose", type: "gift", payeeDescription: "Gift cards", amountCents: 50000,
+    items: [{ name: "Gift card", qty: 1 }], context: { transcriptExcerpt: "gift cards, don't tell his mom" } };
+  orders.push({ id: id("ord"), seniorId: "sen_rose", request: req, status: "held", fraud: assess(req),
+    createdAt: new Date(Date.now() - 60_000).toISOString() });
+}
+
+// ── delivery (D14, mock provider) ──────────────────────────────────────────
+const deliveries: DeliveryOrder[] = [];
+const delivery = {
+  fulfil(o: Order) {
+    const d: DeliveryOrder = { deliveryId: id("del"), orderId: o.id, seniorId: o.seniorId, quoteId: id("q"), provider: "mock",
+      status: "dry_run_complete", cartTotalCents: o.request.amountCents, approvedAmountCents: o.request.amountCents,
+      storeName: "FreshMart (mock)", etaText: "about 45 minutes", createdAt: now(), updatedAt: now() };
+    deliveries.push(d);
+    o.fulfilment = { provider: "mock", storeName: d.storeName, quoteId: d.quoteId, unmatchedItems: [],
+      delivery: { deliveryId: d.deliveryId, status: d.status, etaText: d.etaText } };
+  },
+  advance(d: DeliveryOrder, to: DeliveryStatus) {
+    d.status = to;
+    d.updatedAt = now();
+    // delivery-status event → money + family
+    const o = orders.find((x) => x.id === d.orderId);
+    if (o?.fulfilment?.delivery && BUG !== "no-delivery-event") o.fulfilment.delivery.status = to;
+    if (to === "delivered" && BUG !== "no-delivery-event") say("mem_lisa", "text", "Rose's groceries arrived.");
+  },
+};
 
 // ── family ─────────────────────────────────────────────────────────────────
 const messages: Message[] = [];
@@ -124,7 +156,7 @@ function simulateInbound(script: string[]) {
     const p = proposals.find((x) => x.status === "awaiting_senior");
     if (p) confirmSenior(p, p.confirmedSlotId!);
   } else if (/grandson|medicare/.test(low)) placeOrder({ ...base, type: "gift", payeeDescription: "Gift cards", amountCents: /medicare/.test(low) ? 30000 : 50000, items: [{ name: "Gift card", qty: 1 }] });
-  else if (/mia/.test(low)) placeOrder({ ...base, type: "gift", merchantId: "mer_crumb", recipientMemberId: "mem_lisa", amountCents: BUG === "dollars" ? 25 : 2500, items: [{ name: "Gift card", qty: 1 }] });
+  else if (/mia/.test(low)) strayLateScam(), placeOrder({ ...base, type: "gift", merchantId: "mer_crumb", recipientMemberId: "mem_lisa", amountCents: BUG === "dollars" ? 25 : 2500, items: [{ name: "Gift card", qty: 1 }] });
   else if (/groceries/.test(low)) placeOrder({ ...base, type: "groceries", merchantId: "mer_freshmart", amountCents: 2340, items: [{ name: "Milk", qty: 1 }] });
   const c = { callId: id("call"), kind: "inbound", startedAt: now() };
   calls.push(c);
@@ -142,18 +174,20 @@ function confirmSenior(p: Proposal, slotId: string): ScheduledCall {
 }
 
 // ── HTTP ───────────────────────────────────────────────────────────────────
-function app(name: string): FastifyInstance {
+function app(name: string, reset: () => void, health: () => object = () => ({ ok: true, service: name, mock: true })): FastifyInstance {
   const a = Fastify();
-  a.get("/health", async () => ({ ok: true, service: name, mock: true }));
+  a.get("/health", async () => health());
+  a.post("/demo/reset", async () => { reset(); return { ok: true }; });   // D1
   return a;
 }
+const clear = (...xs: unknown[][]) => xs.forEach((x) => (x.length = 0));
 
-const voice = app("voice");
+const voice = app("voice", () => clear(calls));
 voice.post<{ Body: { script: string[] } }>("/demo/simulate-inbound", async (r) => simulateInbound(r.body.script));
-voice.post<{ Body: { holdId: string; memberId: string; script: string[] } }>("/demo/simulate-verification", async (r) => {
+voice.post<{ Body: SimulateVerificationRequest }>("/demo/simulate-verification", async (r) => {
   const c = { callId: id("call"), kind: "verification", startedAt: now() };
   calls.push(c);
-  if (/cancel|wasn't me/i.test(r.body.script.join(" "))) {
+  if (/cancel|wasn't me/i.test(r.body.script.map((l) => l.text).join(" "))) {
     const h = holds.find((x) => x.id === r.body.holdId)!;
     const o = orders.find((x) => x.id === h.orderId)!;
     h.status = BUG === "release" ? "released" : "cancelled";
@@ -166,11 +200,12 @@ voice.post<{ Body: { holdId: string; memberId: string; script: string[] } }>("/d
 });
 voice.get("/demo/calls", async () => calls);
 
-const money = app("money");
+const money = app("money", () => clear(orders, holds));
 money.get("/orders", async () => orders);
+money.get<{ Params: { id: string } }>("/orders/:id", async (r, reply) => orders.find((o) => o.id === r.params.id) ?? reply.code(404).send({ error: { code: "NOT_FOUND", message: r.params.id } }));
 money.get("/holds", async () => holds);
 
-const fam = app("family");
+const fam = app("family", () => { clear(messages, proposals, scheduled, lastPublicDetail); scamsStopped = 0; savedCents = 0; });
 fam.get<{ Querystring: { memberId: string } }>("/messages", async (r) => messages.filter((m) => m.toMemberId === r.query.memberId));
 fam.post<{ Params: { id: string }; Body: { action: string; payload: { proposalId: string; slotId: string } } }>("/messages/:id/act", async (r) => {
   const msg = messages.find((m) => m.id === r.params.id)!;
@@ -192,5 +227,18 @@ fam.post<{ Body: { scheduledCallId: string } }>("/demo/fire-due", async (r) => {
   return { ok: true };
 });
 
-await Promise.all([voice.listen({ port: PORTS.voice }), money.listen({ port: PORTS.money }), fam.listen({ port: PORTS.family })]);
+const del = app("delivery", () => clear(deliveries), () => ({ ok: true, service: "delivery", mock: true,
+  provider: BUG === "live-provider" ? "doordash_thirdparty" : "mock", liveCheckout: BUG === "live-provider" }));
+del.get("/orders", async () => deliveries);
+del.post<{ Params: { id: string }; Body: { to: DeliveryStatus } }>("/demo/advance/:id", async (r, reply) => {
+  const d = deliveries.find((x) => x.deliveryId === r.params.id);
+  if (!d) return reply.code(404).send({ error: { code: "NOT_FOUND", message: r.params.id } });
+  delivery.advance(d, r.body.to);
+  return d;
+});
+
+await Promise.all([
+  voice.listen({ port: PORTS.voice }), money.listen({ port: PORTS.money }),
+  fam.listen({ port: PORTS.family }), del.listen({ port: PORTS.delivery }),
+]);
 console.log(`fake stack up on ${Object.values(PORTS).join(", ")}`);

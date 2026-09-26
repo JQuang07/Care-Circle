@@ -6,12 +6,13 @@
  */
 import type { ZodType } from "zod";
 
-export type Service = "voice" | "money" | "family";
+export type Service = "voice" | "money" | "family" | "delivery";
 
 export const BASE: Record<Service, string> = {
   voice: process.env.VOICE_URL ?? "http://localhost:4001",
   money: process.env.MONEY_URL ?? "http://localhost:4002",
   family: process.env.FAMILY_URL ?? "http://localhost:4003",
+  delivery: process.env.DELIVERY_URL ?? "http://localhost:4004",
 };
 
 export interface Exchange {
@@ -86,7 +87,7 @@ export async function call<T = unknown>(
       .slice(0, 5)
       .map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
       .join("; ");
-    throw new ContractViolation(`${service} ${method} ${path} response violates CONTRACTS.md §3: ${issues}`, ex);
+    throw new ContractViolation(`${service} ${method} ${path} response violates the contract (CONTRACTS.md §3 + addendum): ${issues}`, ex);
   }
   return parsed.data;
 }

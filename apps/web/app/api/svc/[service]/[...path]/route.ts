@@ -3,7 +3,7 @@
  * runs on the server, checks the path against an allowlist, and adds X-CC-Secret.
  */
 import { NextResponse, type NextRequest } from "next/server";
-import { BROWSER_ALLOWED, serviceBaseUrl, type ServiceName } from "@/lib/services";
+import { BROWSER_ALLOWED, CHECKOUT_PATH, CHECKOUT_PHRASE, serviceBaseUrl, type ServiceName } from "@/lib/services";
 
 export const dynamic = "force-dynamic";
 
@@ -20,12 +20,22 @@ async function proxy(req: NextRequest, { params }: Params, method: "GET" | "POST
   if (!BROWSER_ALLOWED[svc][method].some((re) => re.test(subpath)))
     return err(403, "PATH_NOT_ALLOWED", `${method} ${svc}${subpath} isn't exposed to the browser.`);
 
+  let reqBody = method === "POST" ? await req.text() : undefined;
+  if (svc === "delivery" && CHECKOUT_PATH.test(subpath)) {
+    const b = (() => { try { return JSON.parse(reqBody ?? ""); } catch { return undefined; } })();
+    if (b?.confirmPhrase !== CHECKOUT_PHRASE)
+      return err(403, "CONFIRMATION_REQUIRED", `A real order needs the typed phrase "${CHECKOUT_PHRASE}".`);
+    if (typeof b.confirmedBy !== "string" || !b.confirmedBy.trim())
+      return err(400, "CONFIRMATION_REQUIRED", "Type the name of the person approving this order.");
+    reqBody = JSON.stringify({ confirmedBy: b.confirmedBy.trim() });
+  }
+
   const url = `${serviceBaseUrl(svc)}${subpath}${req.nextUrl.search}`;
   try {
     const upstream = await fetch(url, {
       method,
       headers: { "content-type": "application/json", "x-cc-secret": process.env.CC_INTERNAL_SECRET ?? "" },
-      body: method === "POST" ? await req.text() : undefined,
+      body: reqBody,
       cache: "no-store",
       signal: AbortSignal.timeout(15_000),
     });

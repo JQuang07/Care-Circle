@@ -15,6 +15,7 @@
     "db:reset": "docker compose down -v && docker compose up -d --wait",
     "e2e": "dotenv -e .env -- pnpm --filter @care-circle/e2e test",
     "e2e:10": "dotenv -e .env -- tsx scripts/e2e-repeat.ts 10",
+    "e2e:file": "tsx scripts/file-bugs.ts",
     "typecheck": "pnpm -r --parallel typecheck",
     "build:web": "pnpm --filter @care-circle/web build",
     "e2e:selftest": "pnpm --filter @care-circle/e2e selftest",
