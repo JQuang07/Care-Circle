@@ -1,0 +1,22 @@
+{
+  "id": "scam-05-irs",
+  "label": "scam",
+  "description": "IRS back taxes paid in Apple gift cards",
+  "at": "2026-11-18T19:00:00Z",
+  "request": {
+    "seniorId": "sen_rose",
+    "type": "other",
+    "items": [
+      {
+        "name": "Apple gift card",
+        "qty": 3,
+        "priceCents": 10000
+      }
+    ],
+    "amountCents": 30000,
+    "context": {
+      "transcriptExcerpt": "The IRS says I owe back taxes and a warrant will be issued unless I pay $300 in Apple gift cards right now."
+    },
+    "payeeDescription": "Apple gift cards for IRS"
+  }
+}

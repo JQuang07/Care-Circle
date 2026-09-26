@@ -1,0 +1,22 @@
+{
+  "id": "legit-09-ride-to-church",
+  "label": "legit",
+  "description": "Ride to church Sunday",
+  "at": "2026-11-18T19:00:00Z",
+  "request": {
+    "seniorId": "sen_rose",
+    "type": "ride",
+    "items": [
+      {
+        "name": "ride to church",
+        "qty": 1,
+        "priceCents": 1400
+      }
+    ],
+    "amountCents": 1400,
+    "context": {
+      "transcriptExcerpt": "Please book me a ride to church on Sunday morning."
+    },
+    "merchantId": "mer_ridemock"
+  }
+}

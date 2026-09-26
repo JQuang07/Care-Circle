@@ -1,0 +1,22 @@
+{
+  "id": "scam-06-tech-support",
+  "label": "scam",
+  "description": "Tech support: 'Microsoft' wants $300 in gift cards",
+  "at": "2026-11-18T19:00:00Z",
+  "request": {
+    "seniorId": "sen_rose",
+    "type": "other",
+    "items": [
+      {
+        "name": "gift card",
+        "qty": 3,
+        "priceCents": 10000
+      }
+    ],
+    "amountCents": 30000,
+    "context": {
+      "transcriptExcerpt": "Microsoft called, they said my computer has a virus and they need $300 in gift cards to fix my computer."
+    },
+    "payeeDescription": "Microsoft support gift cards"
+  }
+}

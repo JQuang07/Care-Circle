@@ -1,0 +1,364 @@
+{
+  "ranAt": "2026-09-26T18:51:48.253Z",
+  "layer2": "heuristic",
+  "scenarios": 24,
+  "scamsCaught": 12,
+  "scams": 12,
+  "falseHighHolds": 1,
+  "targets": {
+    "scamsCaught": "12/12",
+    "maxFalseHighHolds": 2
+  },
+  "pass": true,
+  "matrix": {
+    "scam": {
+      "low": 0,
+      "medium": 3,
+      "high": 9
+    },
+    "legit": {
+      "low": 11,
+      "medium": 0,
+      "high": 1
+    }
+  },
+  "rows": [
+    {
+      "id": "legit-01-weekly-groceries",
+      "label": "legit",
+      "risk": "low",
+      "score": 0,
+      "hardStop": false,
+      "codes": [],
+      "ok": true,
+      "seniorFacingMessage": ""
+    },
+    {
+      "id": "legit-02-pharmacy-refill",
+      "label": "legit",
+      "risk": "low",
+      "score": 0,
+      "hardStop": false,
+      "codes": [],
+      "ok": true,
+      "seniorFacingMessage": ""
+    },
+    {
+      "id": "legit-03-ride-to-doctor",
+      "label": "legit",
+      "risk": "low",
+      "score": 0,
+      "hardStop": false,
+      "codes": [],
+      "ok": true,
+      "seniorFacingMessage": ""
+    },
+    {
+      "id": "legit-04-cake-for-mark-surprise",
+      "label": "legit",
+      "risk": "high",
+      "score": 20,
+      "hardStop": true,
+      "codes": [
+        "SECRECY",
+        "STORY_UNKNOWN",
+        "NEW_CATEGORY"
+      ],
+      "ok": false,
+      "seniorFacingMessage": "This looks like a trick a lot of people get calls about. Let's check with Danny before we send anything."
+    },
+    {
+      "id": "legit-05-mia-birthday-gift-card",
+      "label": "legit",
+      "risk": "low",
+      "score": 20,
+      "hardStop": false,
+      "codes": [
+        "STORY_UNKNOWN",
+        "NEW_CATEGORY"
+      ],
+      "ok": true,
+      "seniorFacingMessage": ""
+    },
+    {
+      "id": "legit-06-thanksgiving-groceries",
+      "label": "legit",
+      "risk": "low",
+      "score": 15,
+      "hardStop": false,
+      "codes": [
+        "BIG_AMOUNT"
+      ],
+      "ok": true,
+      "seniorFacingMessage": ""
+    },
+    {
+      "id": "legit-07-new-farm-stand",
+      "label": "legit",
+      "risk": "low",
+      "score": 10,
+      "hardStop": false,
+      "codes": [
+        "NEW_MERCHANT"
+      ],
+      "ok": true,
+      "seniorFacingMessage": ""
+    },
+    {
+      "id": "legit-08-gift-for-lisa",
+      "label": "legit",
+      "risk": "low",
+      "score": 20,
+      "hardStop": false,
+      "codes": [
+        "NEW_MERCHANT",
+        "NEW_CATEGORY"
+      ],
+      "ok": true,
+      "seniorFacingMessage": ""
+    },
+    {
+      "id": "legit-09-ride-to-church",
+      "label": "legit",
+      "risk": "low",
+      "score": 0,
+      "hardStop": false,
+      "codes": [],
+      "ok": true,
+      "seniorFacingMessage": ""
+    },
+    {
+      "id": "legit-10-bakery-treat",
+      "label": "legit",
+      "risk": "low",
+      "score": 0,
+      "hardStop": false,
+      "codes": [],
+      "ok": true,
+      "seniorFacingMessage": ""
+    },
+    {
+      "id": "legit-11-cold-medicine",
+      "label": "legit",
+      "risk": "low",
+      "score": 0,
+      "hardStop": false,
+      "codes": [],
+      "ok": true,
+      "seniorFacingMessage": ""
+    },
+    {
+      "id": "legit-12-groceries-topup",
+      "label": "legit",
+      "risk": "low",
+      "score": 0,
+      "hardStop": false,
+      "codes": [],
+      "ok": true,
+      "seniorFacingMessage": ""
+    },
+    {
+      "id": "scam-01-grandparent-gift-cards",
+      "label": "scam",
+      "risk": "high",
+      "score": 88,
+      "hardStop": true,
+      "typology": "grandparent_impostor",
+      "codes": [
+        "GIFT_CARD_NONMEMBER",
+        "NEW_PAYEE",
+        "OVER_CAP",
+        "SECRECY",
+        "STORY_GRANDPARENT_IMPOSTOR",
+        "NEW_MERCHANT",
+        "BIG_AMOUNT",
+        "NEW_CATEGORY",
+        "CLAIMED_NEVER_ASKS"
+      ],
+      "ok": true,
+      "seniorFacingMessage": "This looks like a trick a lot of people get calls about. Let's check with Danny before we send anything."
+    },
+    {
+      "id": "scam-02-grandparent-voice-clone",
+      "label": "scam",
+      "risk": "high",
+      "score": 88,
+      "hardStop": true,
+      "typology": "grandparent_impostor",
+      "codes": [
+        "BLOCKED_CATEGORY",
+        "NEW_PAYEE",
+        "OVER_CAP",
+        "STORY_GRANDPARENT_IMPOSTOR",
+        "NEW_MERCHANT",
+        "BIG_AMOUNT",
+        "NEW_CATEGORY",
+        "CLAIMED_NEVER_ASKS"
+      ],
+      "ok": true,
+      "seniorFacingMessage": "This looks like a trick a lot of people get calls about. Let's check with Danny before we send anything."
+    },
+    {
+      "id": "scam-03-granddaughter-abroad",
+      "label": "scam",
+      "risk": "high",
+      "score": 67,
+      "hardStop": true,
+      "typology": "grandparent_impostor",
+      "codes": [
+        "GIFT_CARD_NONMEMBER",
+        "STORY_GRANDPARENT_IMPOSTOR",
+        "NEW_MERCHANT",
+        "NEW_CATEGORY",
+        "CLAIMED_NOT_IN_CIRCLE"
+      ],
+      "ok": true,
+      "seniorFacingMessage": "This looks like a trick a lot of people get calls about. Let's check with Danny before we send anything."
+    },
+    {
+      "id": "scam-04-medicare",
+      "label": "scam",
+      "risk": "medium",
+      "score": 42,
+      "hardStop": false,
+      "typology": "government_impostor",
+      "codes": [
+        "STORY_GOVERNMENT_IMPOSTOR",
+        "NEW_MERCHANT"
+      ],
+      "ok": true,
+      "seniorFacingMessage": "Before we send this, let's quickly check with Danny to make sure everything's right."
+    },
+    {
+      "id": "scam-05-irs",
+      "label": "scam",
+      "risk": "high",
+      "score": 67,
+      "hardStop": true,
+      "typology": "government_impostor",
+      "codes": [
+        "GIFT_CARD_NONMEMBER",
+        "NEW_PAYEE",
+        "OVER_CAP",
+        "STORY_GOVERNMENT_IMPOSTOR",
+        "NEW_MERCHANT",
+        "BIG_AMOUNT",
+        "NEW_CATEGORY"
+      ],
+      "ok": true,
+      "seniorFacingMessage": "This looks like a trick a lot of people get calls about. Let's check with Danny before we send anything."
+    },
+    {
+      "id": "scam-06-tech-support",
+      "label": "scam",
+      "risk": "high",
+      "score": 59,
+      "hardStop": true,
+      "typology": "tech_support",
+      "codes": [
+        "GIFT_CARD_NONMEMBER",
+        "NEW_PAYEE",
+        "OVER_CAP",
+        "STORY_TECH_SUPPORT",
+        "NEW_MERCHANT",
+        "BIG_AMOUNT",
+        "NEW_CATEGORY"
+      ],
+      "ok": true,
+      "seniorFacingMessage": "This looks like a trick a lot of people get calls about. Let's check with Danny before we send anything."
+    },
+    {
+      "id": "scam-07-prize",
+      "label": "scam",
+      "risk": "medium",
+      "score": 42,
+      "hardStop": false,
+      "typology": "prize_lottery",
+      "codes": [
+        "STORY_PRIZE_LOTTERY",
+        "NEW_MERCHANT"
+      ],
+      "ok": true,
+      "seniorFacingMessage": "Before we send this, let's quickly check with Danny to make sure everything's right."
+    },
+    {
+      "id": "scam-08-romance",
+      "label": "scam",
+      "risk": "high",
+      "score": 41,
+      "hardStop": true,
+      "typology": "romance",
+      "codes": [
+        "NEW_PAYEE",
+        "STORY_ROMANCE",
+        "NEW_MERCHANT",
+        "BIG_AMOUNT"
+      ],
+      "ok": true,
+      "seniorFacingMessage": "This looks like a trick a lot of people get calls about. Let's check with Danny before we send anything."
+    },
+    {
+      "id": "scam-09-investment",
+      "label": "scam",
+      "risk": "high",
+      "score": 44,
+      "hardStop": true,
+      "typology": "investment",
+      "codes": [
+        "BLOCKED_CATEGORY",
+        "NEW_PAYEE",
+        "STORY_INVESTMENT",
+        "NEW_MERCHANT",
+        "NEW_CATEGORY"
+      ],
+      "ok": true,
+      "seniorFacingMessage": "This looks like a trick a lot of people get calls about. Let's check with Danny before we send anything."
+    },
+    {
+      "id": "scam-10-cash-courier",
+      "label": "scam",
+      "risk": "high",
+      "score": 26,
+      "hardStop": true,
+      "typology": "cash_courier",
+      "codes": [
+        "CASH_COURIER",
+        "STORY_CASH_COURIER",
+        "NEW_MERCHANT"
+      ],
+      "ok": true,
+      "seniorFacingMessage": "This looks like a trick a lot of people get calls about. Let's check with Danny before we send anything."
+    },
+    {
+      "id": "scam-11-bank-safe-account",
+      "label": "scam",
+      "risk": "high",
+      "score": 73,
+      "hardStop": true,
+      "typology": "government_impostor",
+      "codes": [
+        "BLOCKED_CATEGORY",
+        "NEW_PAYEE",
+        "STORY_GOVERNMENT_IMPOSTOR",
+        "NEW_MERCHANT",
+        "BIG_AMOUNT",
+        "NEW_CATEGORY"
+      ],
+      "ok": true,
+      "seniorFacingMessage": "This looks like a trick a lot of people get calls about. Let's check with Danny before we send anything."
+    },
+    {
+      "id": "scam-12-disaster-charity",
+      "label": "scam",
+      "risk": "medium",
+      "score": 36,
+      "hardStop": false,
+      "codes": [
+        "STORY_UNKNOWN",
+        "NEW_MERCHANT"
+      ],
+      "ok": true,
+      "seniorFacingMessage": "Before we send this, let's quickly check with Danny to make sure everything's right."
+    }
+  ]
+}

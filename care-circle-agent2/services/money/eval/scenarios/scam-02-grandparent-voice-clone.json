@@ -1,0 +1,23 @@
+{
+  "id": "scam-02-grandparent-voice-clone",
+  "label": "scam",
+  "description": "Grandparent impostor with voice clone, wire to 'lawyer'",
+  "at": "2026-11-18T19:00:00Z",
+  "request": {
+    "seniorId": "sen_rose",
+    "type": "other",
+    "items": [
+      {
+        "name": "wire transfer",
+        "qty": 1,
+        "priceCents": 40000
+      }
+    ],
+    "amountCents": 40000,
+    "context": {
+      "transcriptExcerpt": "It sounded exactly like him. He crashed his car and needs $400 wired to his lawyer tonight.",
+      "claimedRelative": "my grandson"
+    },
+    "payeeDescription": "Western Union to attorney Mr. Blake"
+  }
+}

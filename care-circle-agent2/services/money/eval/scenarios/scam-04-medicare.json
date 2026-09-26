@@ -1,0 +1,22 @@
+{
+  "id": "scam-04-medicare",
+  "label": "scam",
+  "description": "Government impostor: Medicare card 'renewal' fee",
+  "at": "2026-11-18T19:00:00Z",
+  "request": {
+    "seniorId": "sen_rose",
+    "type": "other",
+    "items": [
+      {
+        "name": "Medicare card renewal",
+        "qty": 1,
+        "priceCents": 4000
+      }
+    ],
+    "amountCents": 4000,
+    "context": {
+      "transcriptExcerpt": "A man from Medicare called and said my card is expiring and I have to pay $40 today to keep my benefits."
+    },
+    "payeeDescription": "Medicare card renewal"
+  }
+}

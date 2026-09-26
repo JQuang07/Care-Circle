@@ -1,0 +1,23 @@
+{
+  "id": "scam-03-granddaughter-abroad",
+  "label": "scam",
+  "description": "Grandparent impostor: 'granddaughter' stuck abroad wants Google Play cards",
+  "at": "2026-11-18T19:00:00Z",
+  "request": {
+    "seniorId": "sen_rose",
+    "type": "gift",
+    "items": [
+      {
+        "name": "Google Play card",
+        "qty": 3,
+        "priceCents": 1500
+      }
+    ],
+    "amountCents": 4500,
+    "context": {
+      "transcriptExcerpt": "My granddaughter called from the hospital overseas, she's stranded and needs Google Play cards for her phone today.",
+      "claimedRelative": "my granddaughter"
+    },
+    "payeeDescription": "Google Play cards"
+  }
+}

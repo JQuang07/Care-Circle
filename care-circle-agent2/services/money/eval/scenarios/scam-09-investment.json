@@ -1,0 +1,22 @@
+{
+  "id": "scam-09-investment",
+  "label": "scam",
+  "description": "Investment: 'guaranteed 20%' in bitcoin",
+  "at": "2026-11-18T19:00:00Z",
+  "request": {
+    "seniorId": "sen_rose",
+    "type": "other",
+    "items": [
+      {
+        "name": "bitcoin investment",
+        "qty": 1,
+        "priceCents": 10000
+      }
+    ],
+    "amountCents": 10000,
+    "context": {
+      "transcriptExcerpt": "A nice man on the phone has a guaranteed 20% monthly return in bitcoin, I want to put in $100 to start."
+    },
+    "payeeDescription": "crypto investment account"
+  }
+}

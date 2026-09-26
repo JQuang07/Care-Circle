@@ -1,0 +1,24 @@
+{
+  "id": "legit-05-mia-birthday-gift-card",
+  "label": "legit",
+  "description": "$25 gift card for Mia's birthday, via Lisa",
+  "at": "2026-11-18T19:00:00Z",
+  "request": {
+    "seniorId": "sen_rose",
+    "type": "gift",
+    "items": [
+      {
+        "name": "FreshMart gift card",
+        "qty": 1,
+        "priceCents": 2500
+      }
+    ],
+    "amountCents": 2500,
+    "context": {
+      "transcriptExcerpt": "Mia turns ten on Saturday. Can we get her a $25 gift card from FreshMart and send it to Lisa?",
+      "statedReason": "for Mia's birthday"
+    },
+    "merchantId": "mer_freshmart",
+    "recipientMemberId": "mem_lisa"
+  }
+}
