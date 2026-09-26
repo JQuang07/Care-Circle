@@ -29,7 +29,7 @@ export function buildService(o: BuildServiceOptions): MoneyService {
   const assessFn = (req: OrderRequest) =>
     assess(req, { store: o.store, family: o.family, classifier, llm: o.llm, credential: credentialFor, now: o.now });
   return new MoneyService({
-    delivery: o.delivery, store: o.store, family: o.family, payments: o.payments, events: o.events,
+    delivery: o.delivery, log: o.log, store: o.store, family: o.family, payments: o.payments, events: o.events,
     passkey: simulatedPasskey, assess: assessFn, credential: credentialFor, now: o.now,
   });
 }

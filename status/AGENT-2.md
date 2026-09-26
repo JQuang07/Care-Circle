@@ -1,3 +1,5 @@
+D14 paid orders dispatch delivery asynchronously with the exact charged amount. Repeated confirmation does not re-dispatch; dispatch failures are logged without undoing payment. 126 tests and typecheck passed.
+
 D9 grocery quotes implemented before fraud assessment, including fees, FreshMart outage fallback, quote validation, and payment blocking for unresolved items. 124 tests passed; typecheck passed.
 
 D14 delivery receiver implemented: authenticated, validated, idempotent, and rejects backward status changes. Tests pass.

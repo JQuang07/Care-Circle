@@ -45,3 +45,30 @@ it('rejects inconsistent or expired quotes rather than charging the caller amoun
     await expect(client().price(request)).rejects.toMatchObject({ code: 'INVALID_QUOTE' });
   }
 });
+
+it('dispatches only after payment, once, with the exact amount charged; failure never un-pays', async () => {
+  const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(quote)));
+  vi.stubGlobal('fetch', fetch);
+  const delivery = client();
+  const fulfil = vi.spyOn(delivery, 'fulfil').mockRejectedValue(new Error('offline'));
+  const { service, store } = await setup({ delivery });
+  const order = await service.draft(request);
+  expect(fulfil).not.toHaveBeenCalled();
+  expect((await service.confirm(order.id)).status).toBe('paid');
+  await Promise.resolve();
+  expect(fulfil).toHaveBeenCalledWith(expect.objectContaining({ id: order.id, status: 'paid' }), 1157);
+  expect((await store.getOrder(order.id))?.status).toBe('paid');
+  await service.confirm(order.id);
+  expect(fulfil).toHaveBeenCalledTimes(1);
+});
+it('sends the delivery dispatch contract and shared secret', async () => {
+  const fetch = vi.fn().mockResolvedValue(new Response('{}'));
+  vi.stubGlobal('fetch', fetch);
+  const { service } = await setup();
+  const order = await service.draft(request);
+  order.fulfilment = { provider: 'mock', storeName: 'FreshMart', quoteId: 'quote1' };
+  await client().fulfil(order, 1157);
+  expect(fetch.mock.calls[0][0]).toBe('http://delivery.test/orders');
+  expect(fetch.mock.calls[0][1].headers['x-cc-secret']).toBe('private-test');
+  expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ orderId: order.id, seniorId: 'sen_rose', quoteId: 'quote1', approvedAmountCents: 1157 });
+});

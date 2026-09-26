@@ -1,9 +1,10 @@
-import type { Fulfilment, OrderRequest } from './contracts';
+import type { Fulfilment, Order, OrderRequest } from './contracts';
 import { ApiError } from './errors';
 
 export interface PricedOrder { request: OrderRequest; fulfilment: Fulfilment }
 export interface DeliveryClient {
   price(request: OrderRequest): Promise<PricedOrder>;
+  fulfil(order: Order, approvedAmountCents: number): Promise<void>;
 }
 interface QuoteLine {
   requested: string; qty: number; status: 'matched' | 'not_found' | 'ambiguous';
@@ -35,6 +36,15 @@ function fallback(request: OrderRequest): PricedOrder {
 
 export function httpDelivery(url: string, secret: string, log: (message: string) => void = () => {}, now = () => new Date()): DeliveryClient {
   return {
+    async fulfil(order, approvedAmountCents) {
+      const response = await fetch(`${url.replace(/\/$/, '')}/orders`, {
+        method: 'POST', headers: { 'content-type': 'application/json', 'x-cc-secret': secret },
+        body: JSON.stringify({ orderId: order.id, seniorId: order.seniorId,
+          quoteId: order.fulfilment?.quoteId, approvedAmountCents }),
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!response.ok) throw new Error(`Delivery dispatch returned HTTP ${response.status}`);
+    },
     async price(request) {
       let response: Response;
       try {

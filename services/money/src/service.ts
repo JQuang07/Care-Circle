@@ -15,6 +15,7 @@ const id = (prefix: string) => `${prefix}${randomUUID().replace(/-/g, '').slice(
 
 export interface ServiceDeps {
   delivery?: DeliveryClient;
+  log?: (message: string) => void;
   store: Store;
   family: FamilyClient;
   payments: PaymentsProvider;
@@ -87,6 +88,9 @@ export class MoneyService {
       label: order.request.payeeDescription,
     }]);
     this.d.events.emit('order.paid', order);
+    if (order.fulfilment?.quoteId && this.d.delivery) {
+      void this.d.delivery.fulfil(order, amount).catch(() => this.d.log?.(`Delivery dispatch failed for ${order.id}; payment remains paid`));
+    }
     return order;
   }
 
