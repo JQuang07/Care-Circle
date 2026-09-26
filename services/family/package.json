@@ -3,19 +3,33 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "description": "Care Circle · Agent 3 · Family & Scheduling service (:4003)",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
-    "seed": "tsx src/seed.ts",
-    "typecheck": "tsc -p tsconfig.json"
+    "seed": "tsx src/scripts/seed.ts",
+    "migrate": "tsx src/scripts/migrate.ts",
+    "fakes": "tsx dev/fakes.ts",
+    "livekit:check": "tsx src/scripts/livekit-check.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@care-circle/contracts": "workspace:*",
-    "fastify": "^5.6.0"
+    "@fastify/cors": "^10.0.1",
+    "dotenv": "^16.4.5",
+    "fastify": "^5.1.0",
+    "livekit-server-sdk": "^2.9.0",
+    "luxon": "^3.5.0",
+    "openai": "^4.77.0",
+    "pg": "^8.13.1"
   },
   "devDependencies": {
-    "@types/node": "^22.19.0",
-    "tsx": "^4.20.0",
-    "typescript": "5.9.3"
+    "@types/luxon": "^3.4.2",
+    "@types/node": "^22.10.0",
+    "@types/pg": "^8.11.10",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
   }
 }
