@@ -23,7 +23,8 @@ _Last updated: integration-v2, Part 1 task 1 (contracts) done._
 - [x] **6. `/call/:id` joins LiveKit** (`@livekit/components-react` `VideoConference`). `?member=mem_x` (D5 `roomJoinUrl`) picks who you are; without it, a "Who's joining?" picker lists the call's members. Credentials come from family `GET /schedule/calls/:id/join?memberId=` (D11) through the proxy (added to the family allowlist). Mock credentials (`ws://fake-livekit` / `fake.` token) show a labeled "Simulated video room" instead of trying to connect; an uninvited member sees "isn't invited"; a failed connect shows the server URL and error; leaving shows "Rejoin".
   - Verified in Chrome (fake camera) against a throwaway `livekit-server --dev` container on :7880 (the `.env` devkey/secret): a real call made through family's contract endpoints; Lisa and Danny both joined and saw each other's tiles, Mark was refused, Leave → Rejoin.
   - Note: no LiveKit server runs by default (not in `docker-compose.yml`), so real video needs one started by hand or LiveKit Cloud.
-- [ ] 7. Integration duty: `pnpm e2e` after each checkpoint merge, bugs filed in owners' status files
+- [x] **7. Integration duty (recurring; tooling ready):** after each checkpoint merge run `pnpm e2e`, then `pnpm e2e:file` (dry run) → `pnpm e2e:file --write`. `scripts/file-bugs.ts` files each failure under `## BUGS FROM INTEGRATION` in the owner's status file (voice → A1, money → A2, family/delivery → A3) with expected/actual and the last request/response, replaces the "none yet" placeholder, never duplicates an entry (HTML-comment marker), and touches nothing outside that heading. web/contract failures are listed, not filed. Tested with a planted bug (write, re-run = 0 new, reverted).
+  - Not filed yet: no checkpoint merge has happened, and today's 7 failures (table below) are all tasks already assigned in the runbooks. First real filing: after the Part-1 checkpoint merge.
 - [ ] 8. Final README (H62)
 
 ## Done
