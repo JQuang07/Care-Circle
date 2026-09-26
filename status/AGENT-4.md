@@ -1,5 +1,20 @@
 # Agent 4 · Integrator + Web — status
-_Last updated: Phase 0 hand-off (H3)._
+_Last updated: integration-v2, Part 1 task 1 (contracts) done._
+
+## Part 1 · integration-v2 checklist (docs/agents/agent-4-integrator-web.md)
+- [x] **1. Contracts package:** addendum v1.0.2 applied to `packages/contracts` (types + zod + drift guard + self-test, 28/28).
+  - D5 action payloads per kind (`MESSAGE_ACTIONS`), `MessageActRequest` with the four allowed client extras
+  - D6 `everAskedForMoney: boolean` · D7 `Dependent.birthday?` + `Senior`/`Member`/`Circle` shapes · D9 `Order.fulfilment?`
+  - D11 `CallEnded.scheduledCallId?`, `OrderRequest.scheduledFor?`, `Circle.seniorHints`, `CallJoin`, `VoiceNote`; D1–D4/D8 bodies (`OkResponse`, `TimeTravelRequest`, `FireDueRequest`, `DemoCall`, `SimulateVerification*`, `ScheduledCallDue`, `HoldResolveRequest`)
+  - D14 `Quote`, `QuoteLine`, `QuoteRequest`, `DeliveryOrder`, `DeliveryStatus`, `DeliveryHealth`, `DeliveryStatusEvent`, request bodies
+  - Drift guard re-tested by planting drift (caught). Schemas validated against the live voice/money/family/delivery responses.
+- [ ] 2. E2E: addendum endpoints, fix E2E 4 order selection, extend E2E 1 through delivery, refuse unless delivery is `mock`, delivery in the fake stack
+- [ ] 3. Demo reset chain: family → money → delivery → voice
+- [ ] 4. Web delivery UI: status/ETA/tracking, DRY RUN badge, `unmatchedItems`
+- [ ] 5. Web demo panel DoorDash controls (quote table; guarded "Place real order" via the proxy)
+- [ ] 6. `/call/:id` joins LiveKit via family `/schedule/calls/:id/join`
+- [ ] 7. Integration duty: `pnpm e2e` after each checkpoint merge, bugs filed in owners' status files
+- [ ] 8. Final README (H62)
 
 ## Done
 - **Monorepo:** pnpm workspace (`packages/contracts`, `services/{voice,money,family}`, `apps/web`, `e2e`), Node ≥22.12, pnpm 10 pinned.
