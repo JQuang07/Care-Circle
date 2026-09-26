@@ -1,0 +1,21 @@
+{
+  "id": "scam-10-cash-courier",
+  "label": "scam",
+  "description": "Cash courier: someone will collect cash at the door",
+  "at": "2026-11-18T19:00:00Z",
+  "request": {
+    "seniorId": "sen_rose",
+    "type": "other",
+    "items": [
+      {
+        "name": "cash pickup",
+        "qty": 1
+      }
+    ],
+    "amountCents": 0,
+    "context": {
+      "transcriptExcerpt": "They said my account was compromised and someone will pick up the cash at my door this afternoon."
+    },
+    "payeeDescription": "courier"
+  }
+}

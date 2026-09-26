@@ -1,0 +1,22 @@
+{
+  "id": "legit-02-pharmacy-refill",
+  "label": "legit",
+  "description": "Monthly CornerRx refill",
+  "at": "2026-11-18T19:00:00Z",
+  "request": {
+    "seniorId": "sen_rose",
+    "type": "pharmacy_refill",
+    "items": [
+      {
+        "name": "prescription refill",
+        "qty": 1,
+        "priceCents": 2400
+      }
+    ],
+    "amountCents": 2400,
+    "context": {
+      "transcriptExcerpt": "It's time for my blood pressure refill from CornerRx."
+    },
+    "merchantId": "mer_cornerrx"
+  }
+}

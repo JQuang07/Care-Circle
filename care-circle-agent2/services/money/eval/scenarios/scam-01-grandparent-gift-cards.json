@@ -1,0 +1,24 @@
+{
+  "id": "scam-01-grandparent-gift-cards",
+  "label": "scam",
+  "description": "Grandparent impostor: $500 gift cards, 'don't tell his mom' (demo)",
+  "at": "2026-11-18T19:00:00Z",
+  "request": {
+    "seniorId": "sen_rose",
+    "type": "gift",
+    "items": [
+      {
+        "name": "Target gift card",
+        "qty": 5,
+        "priceCents": 10000
+      }
+    ],
+    "amountCents": 50000,
+    "context": {
+      "transcriptExcerpt": "My grandson Danny called, he's in jail and needs $500 in Target gift cards for bail right away, and he said don't tell his mom.",
+      "statedReason": "Danny needs bail money",
+      "claimedRelative": "my grandson Danny"
+    },
+    "payeeDescription": "Target gift cards"
+  }
+}

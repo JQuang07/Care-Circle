@@ -1,0 +1,22 @@
+{
+  "id": "legit-10-bakery-treat",
+  "label": "legit",
+  "description": "A bakery treat for herself",
+  "at": "2026-11-18T19:00:00Z",
+  "request": {
+    "seniorId": "sen_rose",
+    "type": "other",
+    "items": [
+      {
+        "name": "cinnamon roll",
+        "qty": 2,
+        "priceCents": 450
+      }
+    ],
+    "amountCents": 900,
+    "context": {
+      "transcriptExcerpt": "I'd love a cinnamon roll from Sweet Crumb."
+    },
+    "merchantId": "mer_crumb"
+  }
+}

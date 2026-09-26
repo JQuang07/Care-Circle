@@ -1,0 +1,22 @@
+{
+  "id": "scam-11-bank-safe-account",
+  "label": "scam",
+  "description": "Bank impostor: move money to a 'safe account' via Zelle",
+  "at": "2026-11-18T19:00:00Z",
+  "request": {
+    "seniorId": "sen_rose",
+    "type": "other",
+    "items": [
+      {
+        "name": "Zelle transfer",
+        "qty": 1,
+        "priceCents": 14000
+      }
+    ],
+    "amountCents": 14000,
+    "context": {
+      "transcriptExcerpt": "My bank's fraud department called and said to move my money to a safe account with Zelle before it's too late."
+    },
+    "payeeDescription": "safe account (Zelle)"
+  }
+}

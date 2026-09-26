@@ -1,0 +1,22 @@
+{
+  "id": "scam-08-romance",
+  "label": "scam",
+  "description": "Romance: online 'soldier' needs a plane ticket",
+  "at": "2026-11-18T19:00:00Z",
+  "request": {
+    "seniorId": "sen_rose",
+    "type": "other",
+    "items": [
+      {
+        "name": "plane ticket",
+        "qty": 1,
+        "priceCents": 15000
+      }
+    ],
+    "amountCents": 15000,
+    "context": {
+      "transcriptExcerpt": "My friend Richard, I met him online, he's a soldier overseas and needs $150 for a plane ticket so we can finally meet."
+    },
+    "payeeDescription": "Richard"
+  }
+}
