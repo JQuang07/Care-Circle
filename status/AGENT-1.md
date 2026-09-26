@@ -4,6 +4,9 @@ Updated: 2026-09-26. Branch: `jayden`, synced with integration-v2 on main.
 
 ## Integration follow-up
 
+- D9 voice complete: exact returned totals, store/provider wording, one missing-item question, re-quote on skip, dry-run wording, quote-change invalidation. 44/44 tests and typecheck pass.
+- Agent 2: current MoneyService.draft echoes the submitted request; delivery quote/pricing/fulfilment is not implemented on this base. Voice presentation is tested with injected authoritative quotes; real pricing/delivery integration remains pending Agent 2.
+
 - D4 complete: body phase takes precedence, header fallback, phase-specific deduplication. 41/41 tests and typecheck pass.
 
 - D1/D3 complete: authenticated reset, filtered call summaries, and role-bound verification simulation. 40/40 tests and typecheck pass.

@@ -121,6 +121,37 @@ export class Engine {
         s.transcript.filter((t) => t.speaker === "agent").at(-1)?.text ||
           "What can I help you with?",
       );
+    if (s.pending?.kind === "unmatched") {
+      const order = s.pending.order;
+      // No purchase authorization exists while missing items are unresolved.
+      if (
+        /^(skip( it| them| those)?|leave (it|them) out)[.!\s]*$/i.test(
+          text.trim(),
+        )
+      ) {
+        s.pending = undefined;
+        s.pendingDelivered = false;
+        const missing = order.fulfilment!.unmatchedItems.map((item) =>
+          item.toLowerCase(),
+        );
+        const items = order.request.items.filter(
+          (item) => !missing.includes(item.name.toLowerCase()),
+        );
+        if (!items.length)
+          return this.say(
+            s,
+            "There are no items left. What would you like instead?",
+          );
+        const result = await this.tool(s, "place_order", {
+          ...order.request,
+          items,
+        });
+        return this.say(s, String((result as { speak: string }).speak));
+      }
+      if (affirmative(text)) return this.say(s, this.pendingSummary(s.pending));
+      s.pending = undefined;
+      s.pendingDelivered = false;
+    }
     if (s.pending) {
       if (affirmative(text)) {
         if (!s.pendingDelivered)
@@ -150,7 +181,9 @@ export class Engine {
           );
           assert(
             JSON.stringify(current.request) ===
-              JSON.stringify(pending.order.request),
+              JSON.stringify(pending.order.request) &&
+              JSON.stringify(current.fulfilment) ===
+                JSON.stringify(pending.order.fulfilment),
             "ORDER_CHANGED",
             "Order details changed. Please request a fresh draft.",
           );
@@ -167,7 +200,11 @@ export class Engine {
           );
           return this.say(
             s,
-            "Your order is paid. Is there anything else I can help with?",
+            paid.fulfilment &&
+              (paid.fulfilment.provider === "mock" ||
+                paid.fulfilment.delivery?.status === "dry_run_complete")
+              ? "Your demo order is paid. This is a dry run; no real delivery will be placed. Is there anything else I can help with?"
+              : "Your order is paid. Is there anything else I can help with?",
           );
         }
         if (pending.kind === "verification") {
@@ -233,8 +270,25 @@ export class Engine {
       mer_crumb: "Sweet Crumb Bakery",
       mer_ridemock: "RideMock",
     };
-    if (p.kind === "order")
-      return `That’s ${p.order.request.items.map((i) => `${i.qty} ${i.name}`).join(", ")} from ${merchants[p.order.request.merchantId || ""] || p.order.request.payeeDescription || "the requested merchant"}, $${(p.order.request.amountCents / 100).toFixed(2)}. Should I go ahead?`;
+    if (p.kind === "unmatched")
+      return `They didn't have ${p.order.fulfilment!.unmatchedItems.join(", ")}. Something else, or skip it?`;
+    if (p.kind === "order") {
+      const order = p.order;
+      const source = order.fulfilment
+        ? `${order.fulfilment.storeName}${order.fulfilment.provider === "doordash_thirdparty" ? ", delivered by DoorDash" : ""}`
+        : merchants[order.request.merchantId || ""] ||
+          order.request.payeeDescription ||
+          "the requested merchant";
+      const dryRun =
+        order.fulfilment?.provider === "mock" ||
+        order.fulfilment?.delivery?.status === "dry_run_complete";
+      const delivery = dryRun
+        ? " This is a dry run; no real delivery will be placed."
+        : order.fulfilment?.provider === "doordash_thirdparty"
+          ? " A person must confirm any real delivery in the app."
+          : "";
+      return `That’s ${order.request.items.map((i) => `${i.qty} ${i.name}`).join(", ")} from ${source}, $${(order.request.amountCents / 100).toFixed(2)}.${delivery} Should I go ahead?`;
+    }
     if (p.kind === "verification")
       return "Would you like me to call your family’s stored number to check together?";
     return "Does that family time work for you?";
@@ -366,9 +420,11 @@ export class Engine {
         "NOT_APPROVED",
         "This order needs family review.",
       );
-      s.pending = { kind: "order", order };
+      const pending: Pending = order.fulfilment?.unmatchedItems.length
+        ? { kind: "unmatched", order } : { kind: "order", order };
+      s.pending = pending;
       s.pendingDelivered = false;
-      return { speak: this.pendingSummary(s.pending) };
+      return { speak: this.pendingSummary(pending) };
     }
     if (name === "start_verification_call") {
       const a = z

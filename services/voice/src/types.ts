@@ -42,6 +42,19 @@ export interface Order {
   seniorId: string;
   request: OrderRequest;
   status: "draft" | "approved" | "held" | "cancelled" | "paid";
+  fulfilment?: {
+    provider: "mock" | "doordash_thirdparty";
+    storeName: string;
+    quoteId?: string;
+    unmatchedItems: string[];
+    delivery?: {
+      deliveryId: string;
+      status: string;
+      etaText?: string;
+      trackingUrl?: string;
+      failureReason?: string;
+    };
+  };
   fraud: Fraud;
   holdId?: string;
   receiptUrl?: string;
@@ -96,6 +109,7 @@ export interface Turn {
 }
 export type Pending =
   | { kind: "order"; order: Order }
+  | { kind: "unmatched"; order: Order }
   | { kind: "verification"; holdId: string; memberId: string }
   | { kind: "schedule"; proposalId: string; slotId: string };
 export interface Session {

@@ -613,3 +613,81 @@ test("D4 body phase wins over header and reminders do not consume due dispatch",
     400,
   );
 });
+
+test("D9 reads money's actual quote, names the store and never promises dry-run delivery", async () => {
+  const f = await fixture();
+  const original = f.deps.call.bind(f.deps);
+  f.deps.call = async <T>(
+    ...args: Parameters<typeof f.deps.call>
+  ): Promise<T> => {
+    const result = await original<T>(...args);
+    if (args[2] === "/orders/draft") {
+      const order = result as import("../src/types.js").Order;
+      order.request.amountCents = 1789;
+      order.fulfilment = {
+        provider: "doordash_thirdparty",
+        storeName: "Kroger",
+        unmatchedItems: [],
+        delivery: { deliveryId: "del_demo", status: "dry_run_complete" },
+      };
+      f.deps.orders[0] = structuredClone(order);
+    }
+    return result;
+  };
+  const text = await f.engine.turn(f.s, "I need groceries");
+  assert.match(text, /Kroger, delivered by DoorDash/);
+  assert.match(text, /\$17.89/);
+  assert.doesNotMatch(text, /\$23.00/);
+  assert.match(text, /dry run; no real delivery/);
+  await f.engine.delivered(f.s);
+  assert.match(await f.engine.turn(f.s, "yes"), /dry run; no real delivery/);
+});
+test("D9 missing items require one clarification and skip re-quotes before payment", async () => {
+  const f = await fixture();
+  const original = f.deps.call.bind(f.deps);
+  f.deps.call = async <T>(
+    ...args: Parameters<typeof f.deps.call>
+  ): Promise<T> => {
+    const result = await original<T>(...args);
+    if (args[2] === "/orders/draft") {
+      const order = result as import("../src/types.js").Order;
+      order.fulfilment = {
+        provider: "mock",
+        storeName: "FreshMart",
+        unmatchedItems: order.request.items
+          .filter((i) => i.name === "oat milk")
+          .map((i) => i.name),
+      };
+      f.deps.orders[f.deps.orders.length - 1] = structuredClone(order);
+    }
+    return result;
+  };
+  const result = await f.engine.tool(f.s, "place_order", {
+    ...groceries,
+    items: [
+      { name: "oat milk", qty: 1 },
+      { name: "bread", qty: 1 },
+    ],
+  });
+  assert.equal(
+    (String((result as { speak: string }).speak).match(/\?/g) || []).length,
+    1,
+  );
+  await f.engine.delivered(f.s);
+  await f.engine.turn(f.s, "yes");
+  assert.equal(f.deps.orders[0]?.status, "approved");
+  assert.match(await f.engine.turn(f.s, "skip it"), /bread/);
+  assert.equal(f.deps.orders[1]?.request.items.length, 1);
+  assert.equal(f.s.pendingDelivered, false);
+});
+test("D9 a changed delivery quote invalidates confirmation", async () => {
+  const f = await fixture();
+  await draft(f);
+  await f.engine.delivered(f.s);
+  f.deps.orders[0]!.fulfilment = {
+    provider: "mock",
+    storeName: "Another store",
+    unmatchedItems: [],
+  };
+  await assert.rejects(f.engine.turn(f.s, "yes"), /details changed/);
+});
