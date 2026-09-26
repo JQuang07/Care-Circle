@@ -23,7 +23,8 @@ export const BROWSER_ALLOWED: Record<ServiceName, { GET: RegExp[]; POST: RegExp[
     POST: [/^\/holds\/[\w-]+\/resolve$/, /^\/demo\/reset$/ /* D1 */],
   },
   family: {
-    GET: [/^\/health$/, /^\/messages$/, /^\/moments\/[\w-]+$/, /^\/schedule\/[\w-]+\/upcoming$/, /^\/proposals\/[\w-]+\/pending-senior$/, /^\/contact-rhythm\/[\w-]+$/],
+    // `/schedule/calls/:id/join` (D11) returns a LiveKit token for one member; the browser needs it to join.
+    GET: [/^\/health$/, /^\/messages$/, /^\/schedule\/calls\/[\w-]+\/join$/, /^\/moments\/[\w-]+$/, /^\/schedule\/[\w-]+\/upcoming$/, /^\/proposals\/[\w-]+\/pending-senior$/, /^\/contact-rhythm\/[\w-]+$/],
     POST: [/^\/messages\/[\w-]+\/act$/, /^\/messages\/reply$/, /^\/demo\/fire-due$/ /* D2 */, /^\/demo\/reset$/ /* D1 */],
   },
   // D14. No `/demo/advance` (mock-only test hook, not a demo control).
