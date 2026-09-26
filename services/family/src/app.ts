@@ -7,7 +7,7 @@ import { actOnMessage } from "./domain/actions.js";
 import { getCircle, seedAll } from "./domain/circle.js";
 import { handleFraudHold, handleFraudResolved } from "./domain/fraud.js";
 import { runPostCallPipeline } from "./domain/hooks.js";
-import { handleScheduledCallEnded, runRhythmJob, tick } from "./domain/jobs.js";
+import { fireDue, handleScheduledCallEnded, runRhythmJob, tick } from "./domain/jobs.js";
 import { listMessages } from "./domain/messages.js";
 import { computeMoments } from "./domain/moments.js";
 import { handleOrderPaid, voiceNotesForOrder } from "./domain/orders.js";
@@ -162,6 +162,19 @@ export async function buildApp(deps: Deps, opts: { logger?: boolean } = {}): Pro
     deps.clock.travelTo(new Date(target));
     const ran = await tick(deps);
     return { nowUtc: deps.clock.now().toISOString(), tick: ran };
+  });
+
+  /** D2: fire scheduled_call.due for one call right now (demo "ring Rose" button). Re-firing is allowed. */
+  app.post<{ Body: { scheduledCallId?: string } }>("/demo/fire-due", async (req) => {
+    const sc = await getScheduledCall(deps, (req.body as any)?.scheduledCallId ?? "");
+    if (sc.kind !== "video_call") throw badRequest("visits have no phone leg", "NO_PHONE_LEG");
+    if (sc.status === "done" || sc.status === "missed") throw new AppError(409, "CALL_OVER", `scheduled call is ${sc.status}`);
+    try {
+      await fireDue(deps, sc);
+    } catch (err) {
+      throw new AppError(502, "VOICE_UNAVAILABLE", `voice rejected scheduled_call.due: ${String(err)}`);
+    }
+    return { ok: true };
   });
 
   return app;

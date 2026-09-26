@@ -2,12 +2,12 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { DateTime } from "luxon";
 import type { Message, Order, Proposal, ScheduledCall } from "../src/contracts-local.js";
 import { scriptedMuse } from "../src/adapters/muse.js";
-import { fakeMoney } from "../src/adapters/services.js";
+import { fakeMoney, httpVoiceClient } from "../src/adapters/services.js";
 import { getCircle } from "../src/domain/circle.js";
 import { sendMessage } from "../src/domain/messages.js";
 import { runRhythmJob, tick } from "../src/domain/jobs.js";
 import { buildConstraints, checkSlot } from "../src/domain/scheduling/constraints.js";
-import { json, makeCtx, type TestCtx } from "./helpers.js";
+import { json, makeCtx, NOW, type TestCtx } from "./helpers.js";
 
 const ET = "America/New_York";
 const MIN = 60_000;
@@ -107,6 +107,38 @@ describe("DoD: request → 3 valid slots → accepts → Rose confirms → room 
     const r = await json(ctx, "POST", "/demo/time-travel", { to: "next_call" });
     expect(r.body.tick).toMatchObject({ due: 1, briefings: 1 });
     expect(ctx.voice.events.map((e) => e.phase)).toEqual(["due"]);
+  });
+
+  it("D2: /demo/fire-due fires scheduled_call.due now and sets ringing (secret required)", async () => {
+    const p = await request();
+    await acceptAll(p);
+    const sc = (await json<ScheduledCall>(ctx, "POST", `/schedule/proposals/${p.id}/confirm-senior`, { slotId: p.slots[0].id })).body;
+    expect((await json(ctx, "POST", "/demo/fire-due", { scheduledCallId: sc.id }, {})).status).toBe(401);
+    expect((await json(ctx, "POST", "/demo/fire-due", { scheduledCallId: "sch_nope" })).status).toBe(404);
+    const r = await json(ctx, "POST", "/demo/fire-due", { scheduledCallId: sc.id });
+    expect(r).toEqual({ status: 200, body: { ok: true } });
+    expect(ctx.voice.events).toHaveLength(1);
+    expect(ctx.voice.events[0]).toMatchObject({ phase: "due", call: { id: sc.id, status: "ringing" } });
+    expect((await ctx.deps.store.scheduledCalls.get(sc.id))!.status).toBe("ringing");
+    // The scheduler won't fire it a second time when real time reaches T-0.
+    ctx.clock.travelTo(new Date(Date.parse(sc.startUtc) + MIN));
+    expect((await tick(ctx.deps)).due).toBe(0);
+  });
+
+  it("D4: the HTTP voice client sends phase in the body and keeps the X-CC-Phase header", async () => {
+    const Fastify = (await import("fastify")).default;
+    const seen: { body: any; header: unknown }[] = [];
+    const fakeVoice = Fastify();
+    fakeVoice.post("/webhooks/scheduled-call-due", async (req) => { seen.push({ body: req.body, header: req.headers["x-cc-phase"] }); return { ok: true }; });
+    const url = await fakeVoice.listen({ port: 0, host: "127.0.0.1" });
+    try {
+      const client = httpVoiceClient({ ...ctx.deps.cfg, voiceUrl: url });
+      const sc = { id: "sch_1", proposalId: "prop_1", seniorId: "sen_rose", memberIds: ["mem_lisa"], startUtc: NOW, roomName: "r", roomJoinUrl: "http://web.test/call/sch_1", seniorJoin: "phone_dialout", status: "scheduled" } as const;
+      await client.scheduledCallDue({ ...sc, memberIds: [...sc.memberIds] }, "reminder");
+      expect(seen).toEqual([{ body: { ...sc, phase: "reminder" }, header: "reminder" }]);
+    } finally {
+      await fakeVoice.close();
+    }
   });
 });
 

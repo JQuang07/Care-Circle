@@ -37,8 +37,8 @@ export interface MoneyClient {
 export function httpVoiceClient(cfg: Config): VoiceClient {
   return {
     async scheduledCallDue(sc, phase) {
-      // CONTRACTS §5: same path + payload for T-30 reminder and T-0 due; the phase travels in a header (see CCR-3).
-      await call(cfg, cfg.voiceUrl, "POST", "/webhooks/scheduled-call-due", sc, { "X-CC-Phase": phase });
+      // D4: the phase is in the body; the X-CC-Phase header stays for older readers.
+      await call(cfg, cfg.voiceUrl, "POST", "/webhooks/scheduled-call-due", { ...sc, phase }, { "X-CC-Phase": phase });
     },
   };
 }

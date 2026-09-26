@@ -17,6 +17,7 @@ Also owns `services/delivery` on **:4004** (D14). Run everything with `pnpm dev`
 
 - **Integration v2 · task 1 (D10):** a request that names members needs all of them to accept the same slot; one that names nobody goes to `awaiting_senior` once any 2 invitees accept the same slot. Non-responders stay invited and get the join link. This fixes E2E 2 ("proposal never reaches Rose").
 - **Integration v2 · task 2 (D5):** buttons now use the addendum action names. `accept_slot` payloads carry the full `Slot`, fraud-card payloads are exactly `{ orderId, holdId }`, and nudges and briefings get `call_now` / `dismiss`. The stored payload wins over client keys; the pre-D5 names still work as aliases.
+- **Integration v2 · task 3 (D2 + D4):** `POST /demo/fire-due { scheduledCallId }` (secret) sets `ringing` and sends `scheduled_call.due` now. The due body now carries `phase: "reminder" | "due"`, and the `X-CC-Phase` header stays.
 
 ## In progress
 - Integration v2 tasks 2–7 (`docs/agents/agent-3-family.md` Part 1), then delivery upkeep and live E2E. Checklist: `services/family/TASKS.md` Phase 5.
@@ -40,4 +41,5 @@ Also owns `services/delivery` on **:4004** (D14). Run everything with `pnpm dev`
 9. **CCR-9 (auth scope).** Family requires `X-CC-Secret` on `/webhooks/*`, `/circle/*`, `/jobs/*`, `/demo/*`. Other routes stay open so the web app can call them. Set `FAMILY_REQUIRE_SECRET_ALL=1` to lock everything once web calls go server-side.
 
 ## BUGS FROM INTEGRATION
+- **For Agent 1 (`services/voice/src/app.ts` `/webhooks/scheduled-call-due`):** it enqueues `due:${call.id}` without reading `phase`, so the T-30 **reminder** looks the same as T-0 and may ring Rose 30 minutes early. Family now sends `phase: "reminder" | "due"` in the body (D4); please branch on it.
 - **For Agent 4 (root `scripts/seed.ts:50`): `pnpm seed` fails on Windows.** It prints "family seed failed (exit null)" because Node can't find `pnpm.cmd` when `spawnSync("pnpm", …)` runs without a shell. Fix: `spawnSync("pnpm", args, { …, shell: process.platform === "win32" })`. Workaround until then: run `npx dotenv -e .env -- pnpm --filter @care-circle/<svc> run seed` for family, money, delivery and voice, in that order.

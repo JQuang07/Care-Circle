@@ -39,6 +39,14 @@ async function sendBriefings(deps: Deps, sc: ScheduledCallRecord) {
   }
 }
 
+/** T-0: status → ringing, then scheduled_call.due (phase "due") to voice, which dials Rose. */
+export async function fireDue(deps: Deps, sc: ScheduledCallRecord): Promise<void> {
+  sc.status = "ringing";
+  await deps.voice.scheduledCallDue(toScheduledCall(sc), "due");
+  sc.dueSentAt = deps.clock.now().toISOString();
+  await deps.store.scheduledCalls.put(sc);
+}
+
 /** One pass of the scheduler: T-60 briefing, T-30 reminder, T-0 due + ringing, and missed detection. */
 export async function tick(deps: Deps): Promise<{ briefings: number; reminders: number; due: number; missed: number }> {
   const now = deps.clock.now().getTime();
@@ -64,10 +72,8 @@ export async function tick(deps: Deps): Promise<{ briefings: number; reminders: 
         await deps.store.scheduledCalls.put(sc);
       }
       if (!sc.dueSentAt && now >= start && sc.status === "scheduled") {
-        sc.status = "ringing";
-        await deps.voice.scheduledCallDue(toScheduledCall(sc), "due");
-        sc.dueSentAt = new Date(now).toISOString(); out.due++;
-        await deps.store.scheduledCalls.put(sc);
+        await fireDue(deps, sc);
+        out.due++;
       }
       if ((sc.status === "ringing" || sc.status === "live") && now >= start + MISSED_AFTER) {
         sc.status = "missed"; out.missed++;
