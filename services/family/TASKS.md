@@ -63,5 +63,20 @@ Legend: `[x]` done · `[ ]` open · **DoD** = definition-of-done item.
 - [x] Missed calls (no `call.ended` after T+90m → `missed`)
 - [x] Demo helpers: reset/seed, clock fast-forward (`/demo/*`, secret-protected)
 
+## Phase 5 · Integration v2 (`docs/agents/agent-3-family.md`; the addendum wins)
+### Part 1 · Family
+- [x] 1. **D10:** named members → all must accept the same slot; none named → `awaiting_senior` once ≥2 invitees accept the same slot; non-responders stay invited + get the join link (test: `test/acceptance.test.ts`)
+- [ ] 2. **D5 action vocabulary:** `accept_slot` / `decline_all` (payload `{ proposalId, slotId, slot }`), `cancel_hold` / `release_hold` / `calling_her` (`{ orderId, holdId }`), `add_item` / `record_voice_note` (`{ orderId }`), `call_now` / `dismiss` (`{ hookId? }`); clients may add only `voiceNoteUrl`, `passkeyAssertion`, `note`, `slotId`
+- [ ] 3. **D2 + D4:** `POST /demo/fire-due { scheduledCallId }`; `phase: "reminder" | "due"` in the `scheduled-call-due` body (keep `X-CC-Phase`)
+- [ ] 4. **D6/D7/D11/D12:** `everAskedForMoney: boolean`; Mia `birthday: "10-14"`; join/proposal/seniorHints/voice-notes endpoints; `/moments?week=` ISO week, default = current week in Rose's tz
+- [ ] 5. `POST /webhooks/delivery-status` (secret, idempotent by `deliveryId` + `status`): dry run → Lisa; placed/picked_up → ETA note; delivered → circle + voice `/calls/outbound`; failed → verifiers
+- [ ] 6. Config: `FAMILY_PORT ?? 4003` only (no `PORT`); `contracts-local.ts` → `@care-circle/contracts` once the addendum types are published
+- [ ] 7. Postgres test runs against Docker's database
+### Part 2 · Delivery upkeep
+- [ ] `pnpm --filter @care-circle/delivery test` green (15, every safety gate); switch `src/types.ts` to `@care-circle/contracts` once `Quote`, `QuoteLine`, `DeliveryOrder` are there
+### Part 3 · Verify against the real services
+- [ ] `pnpm health` 5 green; `pnpm e2e` E2E 2 and E2E 5 pass; delivery `/quote` curl; delivery message in Lisa's inbox after a paid grocery order (needs Arpit's tasks 4–5)
+### Part 4 · DoorDash MCP (human + Claude): see the runbook
+
 ## Environment notes
-- `localhost:5432` currently reaches a native Windows PostgreSQL service, not the `cc-pg` container, so the service runs on the in-memory store under `MOCK=1` (see status/AGENT-3.md → Blocked on).
+- Docker's Postgres (`care-circle-db`) serves `localhost:5432` now that the native Windows services are stopped. If they start again after a reboot, voice fails on DB auth.

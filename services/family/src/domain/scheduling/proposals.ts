@@ -32,22 +32,26 @@ export function toScheduledCall(s: ScheduledCallRecord): ScheduledCall {
 
 const EVERYONE = /^(everyone|all|family|the family|the kids|kids|children|grandkids|grandchildren)$/i;
 
-/** Accepts ids or names (the voice agent's `who` may be names). Dependents resolve to their parent. */
+/**
+ * Accepts ids or names (the voice agent's `who` may be names). Dependents resolve to their parent.
+ * `named` is false when nobody specific was asked for (no `who`, or only "everyone"-style words): D10.
+ */
 function resolveWho(members: Member[], raw: string[] | undefined, includeDependents: boolean | undefined) {
   let includeDeps = !!includeDependents;
-  if (!raw || raw.length === 0) return { memberIds: members.map((m) => m.id), includeDeps };
+  if (!raw || raw.length === 0) return { memberIds: members.map((m) => m.id), includeDeps, named: false };
   const ids = new Set<string>();
+  let named = false;
   for (const w of raw) {
     const s = String(w).trim();
     const byId = members.find((m) => m.id === s);
     const byName = members.find((m) => m.name.toLowerCase() === s.toLowerCase());
     const parent = members.find((m) => m.dependents?.some((d) => d.name.toLowerCase() === s.toLowerCase()));
-    if (byId || byName) ids.add((byId ?? byName)!.id);
-    else if (parent) { ids.add(parent.id); includeDeps = true; }
+    if (byId || byName) { ids.add((byId ?? byName)!.id); named = true; }
+    else if (parent) { ids.add(parent.id); includeDeps = true; named = true; }
     else if (EVERYONE.test(s)) { members.forEach((m) => ids.add(m.id)); if (/kid|child|grand/i.test(s)) includeDeps = true; }
     else throw badRequest(`unknown member "${s}"`, "UNKNOWN_MEMBER");
   }
-  return { memberIds: [...ids], includeDeps };
+  return { memberIds: [...ids], includeDeps, named };
 }
 
 function slotLines(slots: Slot[], member: Member): string {
@@ -90,7 +94,7 @@ export async function requestSchedule(deps: Deps, body: ScheduleRequestBody, opt
   const initiatedBy = body.initiatedBy ?? "member";
   if (!["senior", "member", "ai_rhythm"].includes(initiatedBy)) throw badRequest("invalid initiatedBy");
   const { senior, members } = await getCircle(deps, body.seniorId);
-  let { memberIds, includeDeps } = resolveWho(members, body.memberIds, body.includeDependents);
+  let { memberIds, includeDeps, named } = resolveWho(members, body.memberIds, body.includeDependents);
   if (opts.requestedBy && !memberIds.includes(opts.requestedBy)) memberIds.unshift(opts.requestedBy);
   // Dependents are only ever reached through their parent: including them means including the parent.
   if (includeDeps) {
@@ -106,6 +110,7 @@ export async function requestSchedule(deps: Deps, body: ScheduleRequestBody, opt
     id: newId("prop"), seniorId: senior.id, kind, memberIds, includesDependents, initiatedBy,
     slots: [], responses: [], status: "proposed",
     createdAt: now.toISOString(), durationMin: DURATION_MIN[kind], excludedStarts: [], round: 1,
+    ...(named ? {} : { quorum: Math.min(2, memberIds.length) }),
   };
   const constraints = await buildConstraints(deps, { senior, members, memberIds, includeDependents: includesDependents.length > 0, kind, now });
   const plan = await planSlots(deps.muse, constraints, { preferredWindow: body.preferredWindow, now: now.getTime() });
@@ -125,12 +130,22 @@ async function loadProposal(deps: Deps, id: string): Promise<ProposalRecord> {
   return p;
 }
 
+const needed = (p: ProposalRecord) => p.quorum ?? p.memberIds.length;
+const answered = (p: ProposalRecord, slotId: string, accept: boolean) =>
+  p.memberIds.filter((m) => p.responses.some((r) => r.memberId === m && r.slotId === slotId && r.accept === accept));
+
+/** D10: slots enough invitees accepted (all of them if the request named members, else any 2). */
 function commonSlots(p: ProposalRecord): Slot[] {
-  return p.slots.filter((s) => p.memberIds.every((m) => p.responses.some((r) => r.memberId === m && r.slotId === s.id && r.accept)));
+  return p.slots.filter((s) => answered(p, s.id, true).length >= needed(p));
 }
 
+/** Slots that can no longer reach agreement because too many invitees declined them. */
 function deadSlots(p: ProposalRecord): Slot[] {
-  return p.slots.filter((s) => p.responses.some((r) => r.slotId === s.id && !r.accept));
+  return p.slots.filter((s) => p.memberIds.length - answered(p, s.id, false).length < needed(p));
+}
+
+function listNames(names: string[]): string {
+  return names.length <= 1 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
 
 /** Everyone declined every option: re-plan with fresh slots (up to MAX_ROUNDS). */
@@ -189,8 +204,12 @@ async function applyResponses(deps: Deps, id: string, memberId: string, answers:
   if (common.length) {
     p.status = "awaiting_senior";
     if (!wasAwaiting) {
+      const yes = answered(p, common[0].id, true);
+      const who = yes.length === p.memberIds.length ? "Everyone's" : `${listNames(yes.map((m) => memberName(members, m)))} are`;
       for (const mid of p.memberIds) {
-        await sendMessage(deps, { toMemberId: mid, kind: "text", body: `Everyone's in for ${common[0].localTimes[mid]} (your time). I'll check with ${senior.name} on her next call and confirm.` });
+        // D10: non-responders stay invited and still get the join link once Rose confirms.
+        const still = yes.includes(mid) ? "" : " You're still invited, so join if you can.";
+        await sendMessage(deps, { toMemberId: mid, kind: "text", body: `${who} in for ${common[0].localTimes[mid]} (your time). I'll check with ${senior.name} on her next call and confirm.${still}` });
       }
     }
   } else {
@@ -257,7 +276,7 @@ export async function confirmSenior(deps: Deps, id: string, body: { slotId: stri
     if (existing) return toScheduledCall(existing); // idempotent retry from the voice agent
   }
   if (p.status !== "awaiting_senior") throw conflict(`proposal is ${p.status}; the family hasn't agreed on a time yet`, "NOT_AWAITING_SENIOR");
-  if (!commonSlots(p).some((s) => s.id === slot.id)) throw conflict("not every invited member accepted this slot", "SLOT_NOT_AGREED");
+  if (!commonSlots(p).some((s) => s.id === slot.id)) throw conflict("the family hasn't agreed on this slot", "SLOT_NOT_AGREED");
 
   // Re-check hard constraints at confirm time (time passes; other calls get booked).
   const { senior, members } = await getCircle(deps, p.seniorId);

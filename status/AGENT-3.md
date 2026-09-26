@@ -2,8 +2,7 @@
 
 Branch `andy` · service `services/family` on **:4003** · schema `family` · detailed checklist: `services/family/TASKS.md`
 
-Run: `cd services/family && npm install && npm run dev` (seeds itself on first boot). Tests: `npm test`. Dev fakes for voice/money: `npm run fakes`.
-(pnpm isn't installed on this machine, so the package uses npm scripts only. It drops into a pnpm workspace as-is.)
+Also owns `services/delivery` on **:4004** (D14). Run everything with `pnpm dev` from the repo root. Tests: `pnpm --filter @care-circle/family test`, `pnpm --filter @care-circle/delivery test`.
 
 ## Done
 - **Phase 0:** Fastify service, root `.env`, Postgres `family` schema + idempotent migrations (in-memory fallback under `MOCK=1`), seeded circle (CONTRACTS §2) + relationship facts + weekly availability + 8 weeks of call history (Danny most Sundays ~4pm ET, Lisa midweek, Mark rarely). WhatsApp-mock message store. LiveKit room creation + join tokens verified against local LiveKit (`npm run livekit:check`).
@@ -16,11 +15,13 @@ Run: `cd services/family && npm install && npm run dev` (seeds itself on first b
 
 - **Phase 4:** no common slot → next-best slots + "could you flex?" (Rose's constraints never relaxed); full declines → re-plan (max 3 rounds, then ask for a time); stale slot taps → 409 `SLOT_EXPIRED`; availability across midnight; DST (UK Oct 25 / US Nov 1: Mark is 8pm, not 9pm, on Oct 25; weekly calls keep local time); missed calls; demo reset/time-travel. 78 tests passing.
 
+- **Integration v2 · task 1 (D10):** a request that names members needs all of them to accept the same slot; one that names nobody goes to `awaiting_senior` once any 2 invitees accept the same slot. Non-responders stay invited and get the join link. This fixes E2E 2 ("proposal never reaches Rose").
+
 ## In progress
-- Nothing. Standing by for integration bugs. Ready for Checkpoint merges.
+- Integration v2 tasks 2–7 (`docs/agents/agent-3-family.md` Part 1), then delivery upkeep and live E2E. Checklist: `services/family/TASKS.md` Phase 5.
 
 ## Blocked on
-- **Postgres on this machine (human):** `localhost:5432` reaches a *native* Windows PostgreSQL service (`postgresql-x64-16`/`-17`), not the `cc-pg` Docker container, so `postgres:dev` is rejected. Until the native services are stopped (or `.env` points elsewhere), family runs on its in-memory store (`MOCK=1`); data resets on restart.
+- Nothing. (Postgres fixed: the native Windows services are stopped and Docker's database serves :5432.)
 
 ## CONTRACT CHANGE REQUESTS
 1. **CCR-1 (additive endpoints on family).** Please add to CONTRACTS §4:

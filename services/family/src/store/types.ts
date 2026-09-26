@@ -22,6 +22,11 @@ export interface ProposalRecord extends Proposal {
   excludedStarts: string[];
   round: number;
   flexNote?: string;
+  /**
+   * D10: how many invitees must accept the same slot. Absent = all of them (the request named members);
+   * set to 2 when the request named nobody (everyone invited, the first two to agree decide).
+   */
+  quorum?: number;
 }
 
 export interface ScheduledCallRecord extends ScheduledCall {

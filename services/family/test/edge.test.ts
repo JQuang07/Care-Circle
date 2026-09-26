@@ -52,9 +52,9 @@ describe("no common slot", () => {
 describe("declines", () => {
   it("everyone declining every slot → a fresh round with new times (atomic, no stale-slot crash)", async () => {
     const p = (await request()).body;
-    // Lisa declines two of three first, so Danny's decline-all kills the last live slot mid-way.
-    await json(ctx, "POST", `/schedule/proposals/${p.id}/respond`, { memberId: "mem_lisa", slotId: p.slots[1].id, accept: false });
-    await json(ctx, "POST", `/schedule/proposals/${p.id}/respond`, { memberId: "mem_lisa", slotId: p.slots[2].id, accept: false });
+    // Nobody was named, so a slot dies once 2 of 3 decline it (D10). Lisa declines every slot first,
+    // so Danny's decline-all kills the slots one by one mid-way.
+    for (const s of p.slots) await json(ctx, "POST", `/schedule/proposals/${p.id}/respond`, { memberId: "mem_lisa", slotId: s.id, accept: false });
     const msg = (await ctx.deps.store.messages.list({ toMemberId: "mem_danny", kind: "schedule_proposal" }))[0];
     const r = await json<Proposal>(ctx, "POST", `/messages/${msg.id}/act`, { action: "schedule_decline_all" });
     expect(r.status).toBe(200);
