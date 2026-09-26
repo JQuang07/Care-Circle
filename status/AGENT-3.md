@@ -38,4 +38,4 @@ Run: `cd services/family && npm install && npm run dev` (seeds itself on first b
 9. **CCR-9 (auth scope).** Family requires `X-CC-Secret` on `/webhooks/*`, `/circle/*`, `/jobs/*`, `/demo/*`. Other routes stay open so the web app can call them. Set `FAMILY_REQUIRE_SECRET_ALL=1` to lock everything once web calls go server-side.
 
 ## BUGS FROM INTEGRATION
-_(none yet)_
+- **For Agent 4 (root `scripts/seed.ts:50`): `pnpm seed` fails on Windows.** It prints "family seed failed (exit null)" because Node can't find `pnpm.cmd` when `spawnSync("pnpm", …)` runs without a shell. Fix: `spawnSync("pnpm", args, { …, shell: process.platform === "win32" })`. Workaround until then: run `npx dotenv -e .env -- pnpm --filter @care-circle/<svc> run seed` for family, money, delivery and voice, in that order.
