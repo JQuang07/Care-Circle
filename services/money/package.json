@@ -8,8 +8,7 @@
     "start": "tsx src/index.ts",
     "test": "vitest run",
     "eval": "tsx eval/run.ts",
-    "typecheck": "tsc --noEmit",
-    "seed": "tsx src/scripts/seed-cli.ts"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "fastify": "^5.2.0",
