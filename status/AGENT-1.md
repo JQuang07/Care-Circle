@@ -4,6 +4,8 @@ Updated: 2026-09-26. Branch: `jayden`, synced with integration-v2 on main.
 
 ## Integration follow-up
 
+- Optional order-status tool complete: newest senior-owned order, actual ETA/status, explicit dry-run wording. Default Muse model aligned to muse-spark-1.3. 47/47 voice tests and whole-workspace typecheck pass.
+
 - D7 complete: birthday gifts for Mia bind to verified parent mem_lisa; statedReason preserves her name. Worded demo amount ($25) and natural gift confirmation covered. 46/46 tests and typecheck pass.
 
 - D9 voice complete: exact returned totals, store/provider wording, one missing-item question, re-quote on skip, dry-run wording, quote-change invalidation. 44/44 tests and typecheck pass.

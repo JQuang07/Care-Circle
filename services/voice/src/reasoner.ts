@@ -44,6 +44,12 @@ const requestProperties = {
 const defs: [string, string, Record<string, unknown>, string[]][] = [
   ["check_budget", "Read budget caps.", {}, []],
   [
+    "get_order_status",
+    "Read the newest order and its actual delivery status.",
+    {},
+    [],
+  ],
+  [
     "precheck_purchase",
     "Assess purchase risk without creating an order.",
     requestProperties,
@@ -169,6 +175,8 @@ export class MockReasoner implements Reasoner {
       };
     const text =
       s.transcript.filter((t) => t.speaker === "senior").at(-1)?.text || "";
+    if (/where.*order|order status|out for delivery/i.test(text))
+      return { actions: [{ name: "get_order_status", args: {} }] };
     // Mock revisions still draft through money and need a fresh read-back.
     const addition = /\badd\s+(.+?)[.!]*$/i.exec(text);
     if (addition) {

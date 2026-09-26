@@ -719,3 +719,40 @@ test("D7 gift does not invent or call a minor member", async () => {
   );
   assert.equal(f.deps.orders.length, 0);
 });
+
+test("order status uses newest senior-owned order and actual ETA", async () => {
+  const f = await fixture();
+  await draft(f);
+  const base = f.deps.orders[0]!;
+  base.createdAt = "2026-09-25T00:00:00Z";
+  f.deps.orders.push({
+    ...structuredClone(base),
+    id: "ord_new",
+    createdAt: "2026-09-26T00:00:00Z",
+    status: "paid",
+    fulfilment: {
+      provider: "doordash_thirdparty",
+      storeName: "Kroger",
+      unmatchedItems: [],
+      delivery: {
+        deliveryId: "del_new",
+        status: "picked_up",
+        etaText: "about 20 minutes",
+      },
+    },
+  });
+  f.deps.orders.push({
+    ...structuredClone(base),
+    seniorId: "sen_other",
+    createdAt: "2026-09-27T00:00:00Z",
+  });
+  assert.match(
+    JSON.stringify(await f.engine.tool(f.s, "get_order_status", {})),
+    /out for delivery, about 20 minutes/,
+  );
+  f.deps.orders[1]!.fulfilment!.delivery!.status = "dry_run_complete";
+  assert.match(
+    JSON.stringify(await f.engine.tool(f.s, "get_order_status", {})),
+    /No real delivery/,
+  );
+});

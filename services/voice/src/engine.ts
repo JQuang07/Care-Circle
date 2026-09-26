@@ -335,6 +335,52 @@ export class Engine {
       await this.store.save(s);
       return { speak: "I’ll keep this part private from your family." };
     }
+    if (name === "get_order_status") {
+      const orders = await this.deps.call<Order[]>(
+        "money",
+        "GET",
+        "/orders?seniorId=" + s.seniorId,
+      );
+      const order = orders
+        .filter((o) => o.seniorId === s.seniorId)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+      if (!order) return { speak: "You don't have an order yet." };
+      const delivery = order.fulfilment?.delivery;
+      if (
+        delivery?.status === "dry_run_complete" ||
+        order.fulfilment?.provider === "mock"
+      )
+        return {
+          speak: "This is a demo dry run. No real delivery has been placed.",
+        };
+      const descriptions: Record<string, string> = {
+        picked_up: "Your order is out for delivery",
+        placed: "Your delivery order has been placed",
+        delivered: "Your order has been delivered",
+        awaiting_live_checkout:
+          "Your order needs a person's confirmation in the app before real delivery",
+        cart_ready: "Your cart is ready for review",
+        failed: "The delivery could not be completed",
+      };
+      if (delivery && descriptions[delivery.status])
+        return {
+          speak:
+            descriptions[delivery.status] +
+            (delivery.etaText &&
+            ["placed", "picked_up"].includes(delivery.status)
+              ? ", " + delivery.etaText
+              : "") +
+            ".",
+        };
+      const statuses: Record<Order["status"], string> = {
+        approved: "Your order is ready for your confirmation.",
+        paid: "Your order is paid. I don't have a delivery update yet.",
+        held: "Your order is paused for family review.",
+        cancelled: "Your order is cancelled.",
+        draft: "Your order is still being prepared for review.",
+      };
+      return { speak: statuses[order.status] };
+    }
     if (name === "check_budget")
       return this.deps.call("money", "GET", `/credentials/${s.seniorId}`);
     if (name === "get_family_context") {

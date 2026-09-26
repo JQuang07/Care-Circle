@@ -10,7 +10,7 @@ export function config(env: NodeJS.ProcessEnv = process.env) {
     moneyUrl: env.MONEY_URL || "http://localhost:4002",
     familyUrl: env.FAMILY_URL || "http://localhost:4003",
     metaKey: env.META_API_KEY,
-    model: env.MUSE_MODEL || "muse-spark-1.1",
+    model: env.MUSE_MODEL || "muse-spark-1.3",
     stt: env.STT_PROVIDER || "fallback",
     tts: env.TTS_PROVIDER || "deepgram",
     deepgramKey: env.DEEPGRAM_API_KEY,
