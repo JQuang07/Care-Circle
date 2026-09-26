@@ -12,12 +12,33 @@ import {
   type Pending,
 } from "./types.js";
 import type { Dependencies } from "./dependencies.js";
-import type { Reasoner } from "./reasoner.js";
+import { MockReasoner, type Reasoner } from "./reasoner.js";
 import { Store } from "./store.js";
-export const affirmative = (text: string) =>
-  /^(yes|yes please|yes go ahead|go ahead|please do|that’s right|that's right|confirm|okay|ok)[.!\s]*$/i.test(
-    text.trim(),
+// Only confirmation language is accepted. Unknown trailing words fail closed,
+// so a leading yes cannot authorize an item, quantity, timing or recipient change.
+export const affirmative = (text: string) => {
+  const normalized = text.trim().toLowerCase().replace(/[’]/g, "'");
+  if (
+    /\b(no|not|wait|don't|hold on|actually|never|stop|cancel)\b/.test(
+      normalized,
+    )
+  )
+    return false;
+  if (
+    !/^(yes|yeah|go ahead|please do|that's right|okay|ok|sure|confirm)\b/.test(
+      normalized,
+    )
+  )
+    return false;
+  return (
+    normalized
+      .replace(
+        /\b(that's everything|that is everything|that's right|go ahead|please do|(order|send) (it|them)|place (the|my) order|yes|yeah|okay|ok|sure|confirm|please|and|thank you|thanks)\b/g,
+        "",
+      )
+      .replace(/[.,!\s]/g, "") === ""
   );
+};
 export const negative = (text: string) =>
   /^(no|no thanks|cancel|never mind|nevermind|stop)[.!\s]*$/i.test(text.trim());
 export class Engine {
@@ -100,6 +121,37 @@ export class Engine {
         s.transcript.filter((t) => t.speaker === "agent").at(-1)?.text ||
           "What can I help you with?",
       );
+    if (s.pending?.kind === "unmatched") {
+      const order = s.pending.order;
+      // No purchase authorization exists while missing items are unresolved.
+      if (
+        /^(skip( it| them| those)?|leave (it|them) out)[.!\s]*$/i.test(
+          text.trim(),
+        )
+      ) {
+        s.pending = undefined;
+        s.pendingDelivered = false;
+        const missing = order.fulfilment!.unmatchedItems.map((item) =>
+          item.toLowerCase(),
+        );
+        const items = order.request.items.filter(
+          (item) => !missing.includes(item.name.toLowerCase()),
+        );
+        if (!items.length)
+          return this.say(
+            s,
+            "There are no items left. What would you like instead?",
+          );
+        const result = await this.tool(s, "place_order", {
+          ...order.request,
+          items,
+        });
+        return this.say(s, String((result as { speak: string }).speak));
+      }
+      if (affirmative(text)) return this.say(s, this.pendingSummary(s.pending));
+      s.pending = undefined;
+      s.pendingDelivered = false;
+    }
     if (s.pending) {
       if (affirmative(text)) {
         if (!s.pendingDelivered)
@@ -129,7 +181,9 @@ export class Engine {
           );
           assert(
             JSON.stringify(current.request) ===
-              JSON.stringify(pending.order.request),
+              JSON.stringify(pending.order.request) &&
+              JSON.stringify(current.fulfilment) ===
+                JSON.stringify(pending.order.fulfilment),
             "ORDER_CHANGED",
             "Order details changed. Please request a fresh draft.",
           );
@@ -146,7 +200,11 @@ export class Engine {
           );
           return this.say(
             s,
-            "Your order is paid. Is there anything else I can help with?",
+            paid.fulfilment &&
+              (paid.fulfilment.provider === "mock" ||
+                paid.fulfilment.delivery?.status === "dry_run_complete")
+              ? "Your demo order is paid. This is a dry run; no real delivery will be placed. Is there anything else I can help with?"
+              : "Your order is paid. Is there anything else I can help with?",
           );
         }
         if (pending.kind === "verification") {
@@ -212,8 +270,25 @@ export class Engine {
       mer_crumb: "Sweet Crumb Bakery",
       mer_ridemock: "RideMock",
     };
-    if (p.kind === "order")
-      return `That’s ${p.order.request.items.map((i) => `${i.qty} ${i.name}`).join(", ")} from ${merchants[p.order.request.merchantId || ""] || p.order.request.payeeDescription || "the requested merchant"}, $${(p.order.request.amountCents / 100).toFixed(2)}. Should I go ahead?`;
+    if (p.kind === "unmatched")
+      return `They didn't have ${p.order.fulfilment!.unmatchedItems.join(", ")}. Something else, or skip it?`;
+    if (p.kind === "order") {
+      const order = p.order;
+      const source = order.fulfilment
+        ? `${order.fulfilment.storeName}${order.fulfilment.provider === "doordash_thirdparty" ? ", delivered by DoorDash" : ""}`
+        : merchants[order.request.merchantId || ""] ||
+          order.request.payeeDescription ||
+          "the requested merchant";
+      const dryRun =
+        order.fulfilment?.provider === "mock" ||
+        order.fulfilment?.delivery?.status === "dry_run_complete";
+      const delivery = dryRun
+        ? " This is a dry run; no real delivery will be placed."
+        : order.fulfilment?.provider === "doordash_thirdparty"
+          ? " A person must confirm any real delivery in the app."
+          : "";
+      return `That’s ${order.request.items.map((i) => `${i.qty} ${i.name}`).join(", ")} from ${source}, $${(order.request.amountCents / 100).toFixed(2)}.${delivery} Should I go ahead?`;
+    }
     if (p.kind === "verification")
       return "Would you like me to call your family’s stored number to check together?";
     return "Does that family time work for you?";
@@ -237,12 +312,95 @@ export class Engine {
     name: string,
     args: Record<string, unknown>,
   ): Promise<unknown> {
+    if (
+      ["revise_mock_order", "repeat_mock_order"].includes(name) &&
+      this.reasoner instanceof MockReasoner
+    ) {
+      if (s.privateStart)
+        return {
+          speak:
+            "This part is private. Please start a new call to place an order.",
+        };
+      const orders = await this.deps.call<Order[]>(
+        "money",
+        "GET",
+        `/orders?seniorId=${s.seniorId}`,
+      );
+      const previous = orders
+        .filter(
+          (o) =>
+            o.id === s.lastOrderId &&
+            o.seniorId === s.seniorId &&
+            o.status === "approved",
+        )
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+      assert(previous, "NO_DRAFT", "Please tell me the complete list again.");
+      if (name === "repeat_mock_order") {
+        const pending: Pending = previous.fulfilment?.unmatchedItems.length
+          ? { kind: "unmatched", order: previous }
+          : { kind: "order", order: previous };
+        s.pending = pending;
+        s.pendingDelivered = false;
+        return { speak: this.pendingSummary(pending) };
+      }
+      const item = z.string().min(1).max(200).parse(args.item);
+      return this.tool(s, "place_order", {
+        ...previous.request,
+        items: [...previous.request.items, { name: item, qty: 1 }],
+      });
+    }
     if (name === "mark_private") {
       s.privateStart ||=
         s.transcript.filter((t) => t.speaker === "senior").at(-1)?.ts ||
         new Date().toISOString();
       await this.store.save(s);
       return { speak: "I’ll keep this part private from your family." };
+    }
+    if (name === "get_order_status") {
+      const orders = await this.deps.call<Order[]>(
+        "money",
+        "GET",
+        "/orders?seniorId=" + s.seniorId,
+      );
+      const order = orders
+        .filter((o) => o.seniorId === s.seniorId)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+      if (!order) return { speak: "You don't have an order yet." };
+      const delivery = order.fulfilment?.delivery;
+      if (
+        delivery?.status === "dry_run_complete" ||
+        order.fulfilment?.provider === "mock"
+      )
+        return {
+          speak: "This is a demo dry run. No real delivery has been placed.",
+        };
+      const descriptions: Record<string, string> = {
+        picked_up: "Your order is out for delivery",
+        placed: "Your delivery order has been placed",
+        delivered: "Your order has been delivered",
+        awaiting_live_checkout:
+          "Your order needs a person's confirmation in the app before real delivery",
+        cart_ready: "Your cart is ready for review",
+        failed: "The delivery could not be completed",
+      };
+      if (delivery && descriptions[delivery.status])
+        return {
+          speak:
+            descriptions[delivery.status] +
+            (delivery.etaText &&
+            ["placed", "picked_up"].includes(delivery.status)
+              ? ", " + delivery.etaText
+              : "") +
+            ".",
+        };
+      const statuses: Record<Order["status"], string> = {
+        approved: "Your order is ready for your confirmation.",
+        paid: "Your order is paid. I don't have a delivery update yet.",
+        held: "Your order is paused for family review.",
+        cancelled: "Your order is cancelled.",
+        draft: "Your order is still being prepared for review.",
+      };
+      return { speak: statuses[order.status] };
     }
     if (name === "check_budget")
       return this.deps.call("money", "GET", `/credentials/${s.seniorId}`);
@@ -280,6 +438,34 @@ export class Engine {
           speak:
             "I can’t check your existing prescriptions yet. Please contact your usual pharmacy or a family member.",
         };
+      if (req.type === "gift") {
+        const miaReason = s.transcript
+          .filter((t) => t.speaker === "senior")
+          .slice(-8)
+          .map((t) => t.text)
+          .reverse()
+          .find((text) => /\bfor Mia\b|\bMia['’]s birthday\b/i.test(text));
+        if (miaReason) {
+          const circle = await this.deps.call<Circle>(
+            "family",
+            "GET",
+            "/circle/" + s.seniorId,
+          );
+          const parent = circle.members.find(
+            (m) =>
+              m.id === "mem_lisa" &&
+              (m.age === undefined || m.age >= 18) &&
+              m.dependents?.some((d) => d.name === "Mia" && d.age < 18),
+          );
+          assert(
+            parent,
+            "PARENT_REQUIRED",
+            "Mia's gift needs her parent in the circle.",
+          );
+          req.recipientMemberId = parent.id;
+          req.context.statedReason = miaReason;
+        }
+      }
       req.context.transcriptExcerpt = s.transcript
         .filter((t) => t.speaker === "senior")
         .slice(-8)
@@ -299,6 +485,7 @@ export class Engine {
         "WRONG_SENIOR",
         "Order belongs to another senior.",
       );
+      s.lastOrderId = order.id;
       if (order.status === "held") {
         const circle = await this.deps.call<Circle>(
           "family",
@@ -329,9 +516,12 @@ export class Engine {
         "NOT_APPROVED",
         "This order needs family review.",
       );
-      s.pending = { kind: "order", order };
+      const pending: Pending = order.fulfilment?.unmatchedItems.length
+        ? { kind: "unmatched", order }
+        : { kind: "order", order };
+      s.pending = pending;
       s.pendingDelivered = false;
-      return { speak: this.pendingSummary(s.pending) };
+      return { speak: this.pendingSummary(pending) };
     }
     if (name === "start_verification_call") {
       const a = z

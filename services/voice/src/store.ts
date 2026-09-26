@@ -71,6 +71,15 @@ export class Store {
     this.claims.set(key, callId);
     return true;
   }
+  async reset() {
+    // Reset only voice-owned state; other services reset themselves via D1.
+    await this.pool?.query(
+      "TRUNCATE voice.sessions, voice.outbox, voice.dispatches",
+    );
+    this.sessions.clear();
+    this.jobs.clear();
+    this.claims.clear();
+  }
   async close() {
     await this.pool?.end();
   }

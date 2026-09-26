@@ -4,7 +4,7 @@ import { config } from "../src/config.js";
 import { createApp } from "../src/app.js";
 import { MockDependencies, HttpDependencies } from "../src/dependencies.js";
 import { MockReasoner, type Reasoner } from "../src/reasoner.js";
-import { Engine } from "../src/engine.js";
+import { Engine, affirmative } from "../src/engine.js";
 import { Store } from "../src/store.js";
 import type { OrderRequest } from "../src/types.js";
 const secret = "test-secret-at-least-24-characters";
@@ -430,4 +430,364 @@ test("authenticated debug call inspection is available for the integrator", asyn
   });
   assert.equal(response.statusCode, 200);
   assert.equal(response.json().callId, s.callId);
+});
+
+test("D16 accepts natural confirmations but rejects hesitation and changes", () => {
+  for (const text of [
+    "Yes, that's everything. Please go ahead and order it.",
+    "yeah",
+    "sure",
+    "That's right.",
+    "Okay, please do.",
+  ])
+    assert.equal(affirmative(text), true, text);
+  for (const text of [
+    "Yes, but add eggs",
+    "Yes, no bread",
+    "Sure, wait",
+    "Yes, don't order",
+    "Okay, hold on",
+    "Yes, actually",
+    "Yes, two cartons",
+    "Yes, tomorrow",
+    "Sure, for Danny",
+    "Yes, not yet",
+  ])
+    assert.equal(affirmative(text), false, text);
+});
+test("D16 full sentence confirms only after complete playback", async () => {
+  const f = await fixture();
+  await draft(f);
+  const yes = "Yes, that's everything. Please go ahead and order it.";
+  await f.engine.turn(f.s, yes);
+  assert.equal(f.deps.orders[0]?.status, "approved");
+  await f.engine.delivered(f.s);
+  await f.engine.turn(f.s, yes);
+  assert.equal(f.deps.orders[0]?.status, "paid");
+});
+test("D16 yes but add eggs re-quotes and requires fresh playback", async () => {
+  const f = await fixture();
+  await draft(f);
+  await f.engine.delivered(f.s);
+  await f.engine.turn(f.s, "Yes, but add eggs");
+  assert.equal(f.deps.orders.length, 2);
+  assert.ok(f.deps.orders[1]?.request.items.some((i) => i.name === "eggs"));
+  assert.ok(f.deps.orders.every((o) => o.status === "approved"));
+  await f.engine.turn(f.s, "yes");
+  assert.equal(f.deps.orders[1]?.status, "approved");
+  await f.engine.delivered(f.s);
+  await f.engine.turn(f.s, "yes");
+  assert.equal(f.deps.orders[1]?.status, "paid");
+  assert.equal(f.deps.orders[0]?.status, "approved");
+});
+
+test("D1/D3 demo routes require auth; calls are filtered; reset clears voice state", async (t) => {
+  const { app, engine, store } = await createApp(settings());
+  t.after(() => app.close());
+  for (const [method, url] of [
+    ["GET", "/demo/calls?seniorId=sen_rose"],
+    ["POST", "/demo/reset"],
+    ["POST", "/demo/simulate-verification"],
+  ] as const)
+    assert.equal((await app.inject({ method, url })).statusCode, 401);
+  const s = await engine.create("sen_rose");
+  await engine.create("sen_other");
+  await store.enqueue("due:sch_demo", {});
+  await store.claim("demo", s.callId);
+  const calls = (
+    await app.inject({
+      url: "/demo/calls?seniorId=sen_rose",
+      headers: { "x-cc-secret": secret },
+    })
+  ).json();
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].callId, s.callId);
+  assert.equal(calls[0].transcript, undefined);
+  const reset = await app.inject({
+    method: "POST",
+    url: "/demo/reset",
+    headers: { "x-cc-secret": secret },
+  });
+  assert.deepEqual(reset.json(), { ok: true });
+  assert.equal(store.sessions.size + store.jobs.size + store.claims.size, 0);
+});
+test("D3 simulation binds member, uses verbal resolution and rejects high-risk release", async (t) => {
+  const deps = new MockDependencies();
+  const { app, engine } = await createApp(settings(), { deps });
+  t.after(() => app.close());
+  const s = await engine.create("sen_rose");
+  await engine.turn(s, "$500 gift cards, grandson in trouble");
+  const payload = {
+    seniorId: "sen_rose",
+    holdId: deps.holds[0]!.id,
+    memberId: "mem_danny",
+    script: [
+      { speaker: "member", text: "cancel" },
+      { speaker: "senior", text: "yes" },
+    ],
+  };
+  const post = (body: unknown) =>
+    app.inject({
+      method: "POST",
+      url: "/demo/simulate-verification",
+      headers: { "x-cc-secret": secret },
+      payload: body as object,
+    });
+  assert.equal(
+    (await post({ ...payload, memberId: "mem_mia" })).statusCode,
+    409,
+  );
+  assert.equal((await post(payload)).statusCode, 200);
+  assert.equal(deps.holds[0]!.status, "open");
+  assert.equal(
+    (
+      await post({
+        ...payload,
+        script: [
+          { speaker: "member", text: "release" },
+          { speaker: "member", text: "yes" },
+        ],
+      })
+    ).statusCode,
+    409,
+  );
+  const response = await post({
+    ...payload,
+    script: [
+      { speaker: "member", text: "cancel" },
+      { speaker: "member", text: "yes" },
+    ],
+  });
+  assert.equal(response.statusCode, 200, response.body);
+  assert.equal(deps.holds[0]!.status, "cancelled");
+  assert.deepEqual(deps.resolutions[0], {
+    decision: "cancel",
+    byMemberId: "mem_danny",
+    method: "verbal_on_verification_call",
+  });
+});
+
+test("D4 body phase wins over header and reminders do not consume due dispatch", async (t) => {
+  const { app, store, tick } = await createApp(settings());
+  t.after(() => app.close());
+  const payload = {
+    id: "sch_phase",
+    proposalId: "prop_demo",
+    seniorId: "sen_rose",
+    memberIds: ["mem_danny"],
+    startUtc: "2026-09-27T20:00:00Z",
+    roomName: "demo-room",
+    roomJoinUrl: "https://example.com/call/demo",
+    seniorJoin: "phone_dialout",
+    status: "scheduled",
+  };
+  const post = (body: object, phase: string) =>
+    app.inject({
+      method: "POST",
+      url: "/webhooks/scheduled-call-due",
+      headers: { "x-cc-secret": secret, "x-cc-phase": phase },
+      payload: body,
+    });
+  assert.equal(
+    (await post({ ...payload, phase: "reminder" }, "due")).statusCode,
+    200,
+  );
+  await tick();
+  assert.equal([...store.sessions.values()][0]?.purpose, "reminder");
+  assert.equal((await post(payload, "reminder")).statusCode, 200);
+  await tick();
+  assert.equal(store.sessions.size, 1);
+  assert.equal(
+    (await post({ ...payload, phase: "due" }, "reminder")).statusCode,
+    200,
+  );
+  await tick();
+  assert.equal(store.sessions.size, 2);
+  assert.ok(
+    [...store.sessions.values()].some(
+      (s) => s.purpose === "scheduled_family_call",
+    ),
+  );
+  assert.equal(
+    (await post({ ...payload, phase: "invalid" }, "due")).statusCode,
+    400,
+  );
+});
+
+test("D9 reads money's actual quote, names the store and never promises dry-run delivery", async () => {
+  const f = await fixture();
+  const original = f.deps.call.bind(f.deps);
+  f.deps.call = async <T>(
+    ...args: Parameters<typeof f.deps.call>
+  ): Promise<T> => {
+    const result = await original<T>(...args);
+    if (args[2] === "/orders/draft") {
+      const order = result as import("../src/types.js").Order;
+      order.request.amountCents = 1789;
+      order.fulfilment = {
+        provider: "doordash_thirdparty",
+        storeName: "Kroger",
+        unmatchedItems: [],
+        delivery: { deliveryId: "del_demo", status: "dry_run_complete" },
+      };
+      f.deps.orders[0] = structuredClone(order);
+    }
+    return result;
+  };
+  const text = await f.engine.turn(f.s, "I need groceries");
+  assert.match(text, /Kroger, delivered by DoorDash/);
+  assert.match(text, /\$17.89/);
+  assert.doesNotMatch(text, /\$23.00/);
+  assert.match(text, /dry run; no real delivery/);
+  await f.engine.delivered(f.s);
+  assert.match(await f.engine.turn(f.s, "yes"), /dry run; no real delivery/);
+});
+test("D9 missing items require one clarification and skip re-quotes before payment", async () => {
+  const f = await fixture();
+  const original = f.deps.call.bind(f.deps);
+  f.deps.call = async <T>(
+    ...args: Parameters<typeof f.deps.call>
+  ): Promise<T> => {
+    const result = await original<T>(...args);
+    if (args[2] === "/orders/draft") {
+      const order = result as import("../src/types.js").Order;
+      order.fulfilment = {
+        provider: "mock",
+        storeName: "FreshMart",
+        unmatchedItems: order.request.items
+          .filter((i) => i.name === "oat milk")
+          .map((i) => i.name),
+      };
+      f.deps.orders[f.deps.orders.length - 1] = structuredClone(order);
+    }
+    return result;
+  };
+  const result = await f.engine.tool(f.s, "place_order", {
+    ...groceries,
+    items: [
+      { name: "oat milk", qty: 1 },
+      { name: "bread", qty: 1 },
+    ],
+  });
+  assert.equal(
+    (String((result as { speak: string }).speak).match(/\?/g) || []).length,
+    1,
+  );
+  await f.engine.delivered(f.s);
+  await f.engine.turn(f.s, "yes");
+  assert.equal(f.deps.orders[0]?.status, "approved");
+  assert.match(await f.engine.turn(f.s, "skip it"), /bread/);
+  assert.equal(f.deps.orders[1]?.request.items.length, 1);
+  assert.equal(f.s.pendingDelivered, false);
+});
+test("D9 a changed delivery quote invalidates confirmation", async () => {
+  const f = await fixture();
+  await draft(f);
+  await f.engine.delivered(f.s);
+  f.deps.orders[0]!.fulfilment = {
+    provider: "mock",
+    storeName: "Another store",
+    unmatchedItems: [],
+  };
+  await assert.rejects(f.engine.turn(f.s, "yes"), /details changed/);
+});
+
+test("D7 Mia birthday gift goes through Lisa and confirms naturally", async () => {
+  const f = await fixture();
+  await f.engine.turn(f.s, "Mia's birthday is coming up. She's turning ten!");
+  await f.engine.turn(
+    f.s,
+    "I'd like to send a twenty-five dollar Sweet Crumb Bakery gift card to Lisa for Mia's birthday.",
+  );
+  const order = f.deps.orders[0]!;
+  assert.equal(order.request.recipientMemberId, "mem_lisa");
+  assert.match(order.request.context.statedReason!, /Mia/);
+  assert.equal(order.request.amountCents, 2500);
+  assert.equal(order.request.merchantId, "mer_crumb");
+  await f.engine.delivered(f.s);
+  await f.engine.turn(f.s, "Yes, that's right. Please send it.");
+  assert.equal(order.status, "paid");
+});
+test("D7 gift does not invent or call a minor member", async () => {
+  const f = await fixture();
+  f.deps.circle.members = f.deps.circle.members.filter(
+    (m) => m.id !== "mem_lisa",
+  );
+  await assert.rejects(
+    f.engine.turn(f.s, "A $25 gift card for Mia's birthday"),
+    /parent/,
+  );
+  assert.equal(f.deps.orders.length, 0);
+});
+
+test("order status uses newest senior-owned order and actual ETA", async () => {
+  const f = await fixture();
+  await draft(f);
+  const base = f.deps.orders[0]!;
+  base.createdAt = "2026-09-25T00:00:00Z";
+  f.deps.orders.push({
+    ...structuredClone(base),
+    id: "ord_new",
+    createdAt: "2026-09-26T00:00:00Z",
+    status: "paid",
+    fulfilment: {
+      provider: "doordash_thirdparty",
+      storeName: "Kroger",
+      unmatchedItems: [],
+      delivery: {
+        deliveryId: "del_new",
+        status: "picked_up",
+        etaText: "about 20 minutes",
+      },
+    },
+  });
+  f.deps.orders.push({
+    ...structuredClone(base),
+    seniorId: "sen_other",
+    createdAt: "2026-09-27T00:00:00Z",
+  });
+  assert.match(
+    JSON.stringify(await f.engine.tool(f.s, "get_order_status", {})),
+    /out for delivery, about 20 minutes/,
+  );
+  f.deps.orders[1]!.fulfilment!.delivery!.status = "dry_run_complete";
+  assert.match(
+    JSON.stringify(await f.engine.tool(f.s, "get_order_status", {})),
+    /No real delivery/,
+  );
+});
+
+test("full grocery demo preserves the spoken basket and re-reads after small talk", async () => {
+  const f = await fixture();
+  for (const text of [
+    "Hi, it's Rose. I'd like to order my groceries from FreshMart, please.",
+    "A gallon of milk, a loaf of wheat bread, a dozen eggs, and some bananas.",
+    "Oh, and my tomatoes finally came in this week. The first ones of the summer!",
+    "Yes, that's everything. Please go ahead and order it.",
+  ]) {
+    await f.engine.turn(f.s, text);
+    await f.engine.delivered(f.s);
+  }
+  const order = f.deps.orders.find((o) => o.id === f.s.lastOrderId)!;
+  assert.equal(order.status, "paid");
+  assert.deepEqual(
+    order.request.items.map((i) => i.name),
+    ["milk", "wheat bread", "eggs", "bananas"],
+  );
+});
+test("mock item additions remain bound to this call's draft", async () => {
+  const f = await fixture();
+  await draft(f);
+  const first = f.s.lastOrderId;
+  const other = await f.engine.create("sen_rose");
+  await f.engine.turn(other, "milk");
+  await f.engine.turn(f.s, "Yes, but add eggs");
+  assert.equal(
+    f.deps.orders.find((o) => o.id === first)!.request.items.length,
+    3,
+  );
+  assert.equal(
+    f.deps.orders.find((o) => o.id === f.s.lastOrderId)!.request.items.length,
+    4,
+  );
 });
