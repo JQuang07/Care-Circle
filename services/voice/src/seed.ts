@@ -1,6 +1,7 @@
-/**
- * Seeds the `voice` schema ONLY (CONTRACTS.md §1–2). Called by root `pnpm seed`
- * in the order family → money → voice. Must be idempotent: it runs on every reset.
- * Placeholder from Agent 4's scaffold — Agent 1 replaces this.
- */
-console.log("[voice] seed: nothing to seed yet (Agent 1 owns this script)");
+import { Store } from "./store.js";
+const store = new Store(process.env.DATABASE_URL);
+await store.init();
+console.log(
+  "Voice schema ready. Senior and member seed data belongs to Agent 3; no other schema was read or changed.",
+);
+await store.close();
