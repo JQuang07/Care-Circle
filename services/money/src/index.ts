@@ -1,31 +1,39 @@
-/**
- * money service — scaffold from Agent 4 (Phase 0). Owned by Agent 2 from here on.
- * Port 4002 is fixed by CONTRACTS.md §1. Types/schemas: import from "@care-circle/contracts".
- */
-import Fastify from "fastify";
-import { HealthSchema } from "@care-circle/contracts";
+import { fileURLToPath } from 'node:url';
+import { buildApp } from './app';
+import { buildService, makeLlm, seedIfEmpty } from './deps';
+import { RecordingEvents, httpEvents } from './events';
+import { httpFamilyClient, seedFamilyClient } from './family';
+import { choosePayments } from './payments';
+import { PgStore } from './store/pg';
+import { MemoryStore, type Store } from './store/store';
 
-const SERVICE = "money";
-const PORT = 4002;
+const env = process.env;
+const mock = env.MOCK === '1';
+const now = () => new Date();
+const warn = (m: string) => console.warn(`[money] ${m}`);
 
-const app = Fastify({ logger: { level: process.env.LOG_LEVEL ?? "info" } });
+const store: Store = !mock && env.DATABASE_URL ? new PgStore(env.DATABASE_URL) : new MemoryStore();
+await store.init();
+await seedIfEmpty(store, now());
 
-// CONTRACTS.md §0: GET /health → { ok: true, service, mock }
-app.get("/health", async () => HealthSchema.parse({ ok: true, service: SERVICE, mock: process.env.MOCK === "1" }));
+const family = mock || !env.FAMILY_URL
+  ? seedFamilyClient(now)
+  : httpFamilyClient(env.FAMILY_URL, env.CC_INTERNAL_SECRET ?? '', now, warn);
+const events = mock || !env.FAMILY_URL
+  ? new RecordingEvents((m) => console.log(`[money] ${m}`))
+  : httpEvents(env.FAMILY_URL, env.CC_INTERNAL_SECRET ?? '', warn);
+const payments = choosePayments(env, warn);
+const llm = mock ? null : makeLlm(env);
+if (!mock && !llm) warn('No META_API_KEY: Layer 2 and messages use the offline heuristic/templates');
 
-// CONTRACTS.md §0 error shape for everything, including unknown routes.
-app.setNotFoundHandler((req, reply) => {
-  reply.code(404).send({ error: { code: "NOT_FOUND", message: `${req.method} ${req.url} is not a route on ${SERVICE}` } });
+const service = buildService({ store, family, payments, events, llm, now, mock, log: warn });
+const app = buildApp({
+  service, mock, secret: env.CC_INTERNAL_SECRET, logger: true,
+  evalResultsPath: fileURLToPath(new URL('../eval/results/latest.json', import.meta.url)),
 });
-app.setErrorHandler((err: Error & { statusCode?: number; code?: string }, _req, reply) => {
-  const status = err.statusCode && err.statusCode >= 400 ? err.statusCode : 500;
-  if (status >= 500) app.log.error(err);
-  reply.code(status).send({ error: { code: err.code ?? (status >= 500 ? "INTERNAL" : "BAD_REQUEST"), message: err.message } });
-});
 
-app.get("/", async () => ({ hello: `care-circle ${SERVICE}`, owner: "Agent 2" }));
+// Cooling-off sweeper: expired holds get cancelled, never released.
+setInterval(() => { service.expireDueHolds().catch((e) => warn(`sweeper: ${e.message}`)); }, 60_000).unref();
 
-app.listen({ port: PORT, host: "0.0.0.0" }).catch((err) => {
-  app.log.error(err);
-  process.exit(1);
-});
+await app.listen({ port: Number(env.PORT ?? 4002), host: '0.0.0.0' });
+console.log(`[money] up on :${env.PORT ?? 4002} mock=${mock} payments=${payments.name} store=${store.constructor.name}`);

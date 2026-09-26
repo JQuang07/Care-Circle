@@ -6,16 +6,21 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
-    "seed": "tsx src/seed.ts",
-    "typecheck": "tsc -p tsconfig.json"
+    "test": "vitest run",
+    "eval": "tsx eval/run.ts",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@care-circle/contracts": "workspace:*",
-    "fastify": "^5.6.0"
+    "fastify": "^5.2.0",
+    "openai": "^4.77.0",
+    "pg": "^8.13.0",
+    "stripe": "^17.5.0"
   },
   "devDependencies": {
-    "@types/node": "^22.19.0",
-    "tsx": "^4.20.0",
-    "typescript": "5.9.3"
+    "@types/node": "^22.10.0",
+    "@types/pg": "^8.11.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0"
   }
 }
