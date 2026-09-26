@@ -72,3 +72,22 @@ it('sends the delivery dispatch contract and shared secret', async () => {
   expect(fetch.mock.calls[0][1].headers['x-cc-secret']).toBe('private-test');
   expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ orderId: order.id, seniorId: 'sen_rose', quoteId: 'quote1', approvedAmountCents: 1157 });
 });
+it('hard-stops a $200 Apple gift card through a DoorDash grocery quote', async () => {
+  const name = '$200 Apple gift card';
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ ...quote,
+    provider: 'doordash_thirdparty', storeName: 'DoorDash grocery store', subtotalCents: 20000, totalCents: 20299,
+    lines: [{ requested: name, qty: 1, status: 'matched', matched: { name: 'Apple prepaid', qty: 1, priceCents: 20000 } }] }))));
+  const { service } = await setup({ delivery: client() });
+  const order = await service.draft({ ...request, items: [{ name, qty: 1 }] });
+  expect(order.status).toBe('held');
+  expect(order.fraud.hardStop).toBe(true);
+  expect(order.fraud.signals.map(s => s.code)).toContain('GIFT_CARD_NONMEMBER');
+  await expect(service.confirm(order.id)).rejects.toMatchObject({ code: 'ORDER_NOT_CONFIRMABLE' });
+});
+it('keeps gift-card hard stops when delivery cannot match the item', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
+  const { service } = await setup({ delivery: client() });
+  const order = await service.draft({ ...request, items: [{ name: '$200 Apple gift card', qty: 1 }] });
+  expect(order.fraud.signals.map(s => s.code)).toContain('GIFT_CARD_NONMEMBER');
+  expect(order.status).toBe('held');
+});
