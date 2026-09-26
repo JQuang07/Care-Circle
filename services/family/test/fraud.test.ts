@@ -56,16 +56,16 @@ describe("fraud cards", () => {
     await ctx.app.flushJobs();
     const lisa = (await card("mem_lisa"))!;
 
-    const calling = await json(ctx, "POST", `/messages/${lisa.id}/act`, { action: "fraud_calling" });
+    const calling = await json(ctx, "POST", `/messages/${lisa.id}/act`, { action: "calling_her" });
     expect(calling.body).toEqual({ ok: true, dial: "+1555010000" });
     expect((await json<Message[]>(ctx, "GET", "/messages?memberId=mem_danny")).body.some((m) => /Lisa is calling Rose/.test(m.body))).toBe(true);
 
-    const noKey = await json(ctx, "POST", `/messages/${lisa.id}/act`, { action: "fraud_approve_passkey" });
+    const noKey = await json(ctx, "POST", `/messages/${lisa.id}/act`, { action: "release_hold" });
     expect(noKey.status).toBe(400);
     expect(noKey.body.error.code).toBe("PASSKEY_REQUIRED");
     expect(money.resolutions).toEqual([]);
 
-    const cancel = await json(ctx, "POST", `/messages/${lisa.id}/act`, { action: "fraud_cancel", payload: { holdId: "hold_OTHER" } });
+    const cancel = await json(ctx, "POST", `/messages/${lisa.id}/act`, { action: "cancel_hold", payload: { holdId: "hold_OTHER" } });
     expect(cancel.status).toBe(200);
     expect(cancel.body.hold.status).toBe("cancelled");
     expect(money.resolutions).toEqual([{ holdId: "hold_scam", decision: "cancel", byMemberId: "mem_lisa", method: "passkey_web" }]);
@@ -75,7 +75,7 @@ describe("fraud cards", () => {
     await json(ctx, "POST", "/webhooks/fraud-hold", scam());
     await ctx.app.flushJobs();
     const danny = (await card("mem_danny"))!;
-    const r = await json(ctx, "POST", `/messages/${danny.id}/act`, { action: "fraud_approve_passkey", payload: { passkeyAssertion: { id: "cred1", sig: "abc" } } });
+    const r = await json(ctx, "POST", `/messages/${danny.id}/act`, { action: "release_hold", payload: { passkeyAssertion: { id: "cred1", sig: "abc" } } });
     expect(r.status).toBe(200);
     expect(money.resolutions[0]).toMatchObject({ decision: "release", method: "passkey_web", byMemberId: "mem_danny", passkeyAssertion: { id: "cred1", sig: "abc" } });
   });
@@ -84,7 +84,7 @@ describe("fraud cards", () => {
     money.holds.length = 0;
     await json(ctx, "POST", "/webhooks/fraud-hold", scam());
     await ctx.app.flushJobs();
-    const r = await json(ctx, "POST", `/messages/${(await card("mem_lisa"))!.id}/act`, { action: "fraud_cancel" });
+    const r = await json(ctx, "POST", `/messages/${(await card("mem_lisa"))!.id}/act`, { action: "cancel_hold" });
     expect(r.status).toBe(404);
     expect(r.body.error.code).toBe("NOT_FOUND");
   });

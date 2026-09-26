@@ -33,9 +33,9 @@ export async function handleFraudHold(deps: Deps, payload: { order: Order; hold:
       toMemberId: v.id, kind: "fraud_card",
       body: `Why we paused: ${lead}${summary}`,
       actions: [
-        { label: "I'm calling her", action: "fraud_calling", payload: { holdId: hold.id, orderId: order.id } },
-        { label: "Cancel it", action: "fraud_cancel", payload: { holdId: hold.id, orderId: order.id } },
-        { label: "Approve in app (passkey)", action: "fraud_approve_passkey", payload: { holdId: hold.id, orderId: order.id, requiresPasskey: true } },
+        { label: "I'm calling her", action: "calling_her", payload: { orderId: order.id, holdId: hold.id } },
+        { label: "Cancel it", action: "cancel_hold", payload: { orderId: order.id, holdId: hold.id } },
+        { label: "Approve in app (passkey)", action: "release_hold", payload: { orderId: order.id, holdId: hold.id } },
       ],
     });
   }
@@ -71,18 +71,18 @@ export async function fraudAction(deps: Deps, action: string, actorId: string, p
   const actor = found?.members.find((m) => m.id === actorId);
   if (!actor?.isVerifier) throw new AppError(403, "NOT_A_VERIFIER", "only verifiers can act on a paused purchase");
   try {
-    if (action === "fraud_calling") {
+    if (action === "calling_her") {
       for (const m of found!.members.filter((x) => x.isVerifier && x.id !== actorId)) {
         await sendMessage(deps, { toMemberId: m.id, kind: "text", body: `${actor.name} is calling ${found!.senior.name} about the paused purchase.` });
       }
       return { ok: true, dial: found!.senior.phone };
     }
-    if (action === "fraud_cancel") {
-      // CONTRACTS has no "app button" method; cancel is always allowed, so we send passkey_web (see CCR-4).
+    if (action === "cancel_hold") {
+      // D8: cancel needs no passkey; money accepts it with method passkey_web and no assertion.
       const hold = await deps.money.resolveHold(holdId, { decision: "cancel", byMemberId: actorId, method: "passkey_web" });
       return { ok: true, hold };
     }
-    if (action === "fraud_approve_passkey") {
+    if (action === "release_hold") {
       if (!payload.passkeyAssertion) {
         throw new AppError(400, "PASSKEY_REQUIRED", "Approving a paused purchase needs a passkey. Prompt WebAuthn and resend with payload.passkeyAssertion.");
       }

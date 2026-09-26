@@ -46,7 +46,7 @@ export async function handleOrderPaid(deps: Deps, order: Order): Promise<void> {
         body: `${senior.name} just ordered groceries from ${at}${itemSummary(order)}. Want to send a voice note with the delivery? She'd love to hear from you.`,
         actions: [
           // v1 has no add-items backend: the button is shown but labelled as coming soon.
-          { label: "Add something (coming soon)", action: "add_item", payload: { orderId: order.id, comingSoon: true } },
+          { label: "Add something (coming soon)", action: "add_item", payload: { orderId: order.id } },
           { label: "Record a voice note for delivery", action: "record_voice_note", payload: { orderId: order.id } },
         ],
       });

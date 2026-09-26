@@ -51,7 +51,8 @@ describe("DoD: request → 3 valid slots → accepts → Rose confirms → room 
     for (const m of p.memberIds) {
       const inbox = (await json<Message[]>(ctx, "GET", `/messages?memberId=${m}`)).body;
       const prop = inbox.find((x) => x.kind === "schedule_proposal")!;
-      expect(prop.actions!.filter((a) => a.action === "schedule_accept").map((a) => a.payload.slotId)).toEqual(p.slots.map((s) => s.id));
+      expect(prop.actions!.filter((a) => a.action === "accept_slot").map((a) => a.payload)).toEqual(p.slots.map((s) => ({ proposalId: p.id, slotId: s.id, slot: s })));
+      expect(prop.actions!.at(-1)).toMatchObject({ action: "decline_all", payload: { proposalId: p.id } });
       expect(prop.actions!.map((a) => a.label).slice(0, 3)).toEqual(p.slots.map((s) => s.localTimes[m]));
     }
 
@@ -59,7 +60,7 @@ describe("DoD: request → 3 valid slots → accepts → Rose confirms → room 
     const slot = p.slots.find((s) => DateTime.fromISO(s.startUtc, { zone: ET }).weekday === 7) ?? p.slots[0];
     for (const m of p.memberIds) {
       const msg = (await ctx.deps.store.messages.list({ toMemberId: m, kind: "schedule_proposal" }))[0];
-      const r = await json(ctx, "POST", `/messages/${msg.id}/act`, { action: "schedule_accept", payload: { slotId: slot.id } });
+      const r = await json(ctx, "POST", `/messages/${msg.id}/act`, { action: "accept_slot", payload: { slotId: slot.id } });
       expect(r.status).toBe(200);
     }
     const pending = (await json<Proposal[]>(ctx, "GET", "/proposals/sen_rose/pending-senior")).body;

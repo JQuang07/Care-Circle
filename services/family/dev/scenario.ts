@@ -27,7 +27,7 @@ const slot = p.slots.find((s: any) => s.localTimes.sen_rose.startsWith("Sun")) ?
 for (const m of p.memberIds) {
   const inbox = await fam("GET", `/messages?memberId=${m}`);
   const msg = inbox.find((x: any) => x.kind === "schedule_proposal");
-  await fam("POST", `/messages/${msg.id}/act`, { action: "schedule_accept", payload: { slotId: slot.id } });
+  await fam("POST", `/messages/${msg.id}/act`, { action: "accept_slot", payload: { slotId: slot.id } });
 }
 console.log("  pending-senior:", (await fam("GET", "/proposals/sen_rose/pending-senior")).map((x: any) => `${x.id} ${x.status}`));
 
@@ -61,7 +61,7 @@ await fam("POST", "/webhooks/fraud-hold", { order, hold });
 await new Promise((r) => setTimeout(r, 500));
 const card = (await fam("GET", "/messages?memberId=mem_danny")).find((m: any) => m.kind === "fraud_card");
 console.log("  Danny's card:", card.body.slice(0, 90), "…", card.actions.map((a: any) => a.label));
-console.log("  cancel →", (await fam("POST", `/messages/${card.id}/act`, { action: "fraud_cancel" })).hold.status);
+console.log("  cancel →", (await fam("POST", `/messages/${card.id}/act`, { action: "cancel_hold" })).hold.status);
 await new Promise((r) => setTimeout(r, 800));
 console.log("  Mark:", (await fam("GET", "/messages?memberId=mem_mark")).filter((m: any) => /All clear/.test(m.body)).map((m: any) => m.body.split("\n")[0]));
 console.log("  moments:", JSON.stringify(await fam("GET", "/moments/sen_rose")));

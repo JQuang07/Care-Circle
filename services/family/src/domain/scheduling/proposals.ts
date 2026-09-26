@@ -60,8 +60,9 @@ function slotLines(slots: Slot[], member: Member): string {
 
 function slotActions(p: ProposalRecord, member: Member) {
   return [
-    ...p.slots.map((s) => ({ label: s.localTimes[member.id], action: "schedule_accept", payload: { proposalId: p.id, slotId: s.id } })),
-    { label: "None of these work", action: "schedule_decline_all", payload: { proposalId: p.id } },
+    // D5: each slot button carries the full Slot so clients can render and check it.
+    ...p.slots.map((s) => ({ label: s.localTimes[member.id], action: "accept_slot", payload: { proposalId: p.id, slotId: s.id, slot: s } })),
+    { label: "None of these work", action: "decline_all", payload: { proposalId: p.id } },
   ];
 }
 

@@ -5,6 +5,7 @@ import { runPostCallPipeline } from "../src/domain/hooks.js";
 import { leaksPrivate, stripPrivate } from "../src/domain/privacy.js";
 import { hasGuilt } from "../src/domain/safety.js";
 import { tick } from "../src/domain/jobs.js";
+import { sendMessage } from "../src/domain/messages.js";
 import { json, makeCtx, NOW, type TestCtx } from "./helpers.js";
 
 const t = (sec: number) => new Date(Date.parse("2026-09-30T14:00:00Z") + sec * 1000).toISOString();
@@ -186,7 +187,7 @@ describe("nudges", () => {
     const danny = await json<Message[]>(ctx, "GET", "/messages?memberId=mem_danny");
     const nudge = danny.body.find((m) => m.kind === "nudge")!;
     expect(nudge.body).toMatch(/tomatoes/);
-    expect(nudge.actions?.map((a) => a.action)).toEqual(["call_senior", "schedule_request"]);
+    expect(nudge.actions?.map((a) => a.action)).toEqual(["call_now", "dismiss"]);
   });
 });
 
@@ -213,7 +214,7 @@ describe("order-paid → connection", () => {
       expect(add).toHaveLength(1);
       expect(add[0].body).toMatch(/FreshMart/);
       expect(add[0].actions).toEqual([
-        { label: "Add something (coming soon)", action: "add_item", payload: { orderId: "ord_g1", comingSoon: true } },
+        { label: "Add something (coming soon)", action: "add_item", payload: { orderId: "ord_g1" } },
         { label: "Record a voice note for delivery", action: "record_voice_note", payload: { orderId: "ord_g1" } },
       ]);
     }
@@ -260,7 +261,7 @@ describe("messages API", () => {
     await json(ctx, "POST", "/webhooks/order-paid", groceryOrder());
     await ctx.app.flushJobs();
     const msg = (await ctx.deps.store.messages.list({ toMemberId: "mem_lisa", kind: "add_to_order" }))[0];
-    expect((await json(ctx, "POST", `/messages/${msg.id}/act`, { action: "fraud_cancel", payload: { holdId: "hold_x" } })).status).toBe(400);
+    expect((await json(ctx, "POST", `/messages/${msg.id}/act`, { action: "cancel_hold", payload: { holdId: "hold_x" } })).status).toBe(400);
     expect((await json(ctx, "POST", `/messages/msg_nope/act`, { action: "add_item" })).status).toBe(404);
   });
 
@@ -272,5 +273,33 @@ describe("messages API", () => {
     expect(proposals[0]).toMatchObject({ initiatedBy: "member", memberIds: ["mem_lisa"], includesDependents: ["Mia"] });
     const inbox = (await json<Message[]>(ctx, "GET", "/messages?memberId=mem_lisa")).body;
     expect(inbox.map((m) => m.kind)).toEqual(["text", "schedule_proposal"]);
+  });
+});
+
+describe("D5 action vocabulary", () => {
+  it("nudges: call_now dials Rose, dismiss is a no-op; hookId is in the stored payload", async () => {
+    await json(ctx, "POST", "/webhooks/call-ended", roseCall());
+    await ctx.app.flushJobs();
+    const nudge = (await ctx.deps.store.messages.list({ toMemberId: "mem_danny", kind: "nudge" }))[0];
+    expect(nudge.actions!.every((a) => /^hook_/.test(a.payload.hookId))).toBe(true);
+    expect((await json(ctx, "POST", `/messages/${nudge.id}/act`, { action: "call_now" })).body).toEqual({ ok: true, dial: "+1555010000" });
+    expect((await json(ctx, "POST", `/messages/${nudge.id}/act`, { action: "dismiss" })).body).toEqual({ ok: true });
+  });
+
+  it("the stored payload wins over client-supplied keys; only whitelisted extras pass through", async () => {
+    await json(ctx, "POST", "/webhooks/order-paid", groceryOrder());
+    await ctx.app.flushJobs();
+    const msg = (await ctx.deps.store.messages.list({ toMemberId: "mem_lisa", kind: "add_to_order" }))[0];
+    const r = await json(ctx, "POST", `/messages/${msg.id}/act`, { action: "record_voice_note", payload: { orderId: "ord_EVIL", voiceNoteUrl: "https://vn.test/1.m4a" } });
+    expect(r.body.voiceNote).toMatchObject({ orderId: "ord_g1", url: "https://vn.test/1.m4a" });
+  });
+
+  it("legacy action names on older stored messages still work", async () => {
+    const legacy = await sendMessage(ctx.deps, {
+      toMemberId: "mem_lisa", kind: "nudge", body: "old nudge",
+      actions: [{ label: "Call Rose", action: "call_senior", payload: { seniorId: "sen_rose" } }],
+    });
+    expect((await json(ctx, "POST", `/messages/${legacy.id}/act`, { action: "call_now" })).body).toEqual({ ok: true, dial: "+1555010000" });
+    expect((await json(ctx, "POST", `/messages/${legacy.id}/act`, { action: "call_senior" })).status).toBe(200);
   });
 });

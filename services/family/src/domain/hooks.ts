@@ -167,8 +167,8 @@ export async function runPostCallPipeline(deps: Deps, call: CallEnded): Promise<
       await sendMessage(deps, {
         toMemberId: member.id, kind: "nudge", body: c.nudgeText,
         actions: [
-          { label: `Call ${senior.name}`, action: "call_senior", payload: { seniorId: senior.id, hookId: rec.id } },
-          { label: "Set up a video call", action: "schedule_request", payload: { seniorId: senior.id, kind: "video_call" } },
+          { label: `Call ${senior.name}`, action: "call_now", payload: { hookId: rec.id } },
+          { label: "Not now", action: "dismiss", payload: { hookId: rec.id } },
         ],
       });
       nudgesSent++;

@@ -56,7 +56,7 @@ describe("declines", () => {
     // so Danny's decline-all kills the slots one by one mid-way.
     for (const s of p.slots) await json(ctx, "POST", `/schedule/proposals/${p.id}/respond`, { memberId: "mem_lisa", slotId: s.id, accept: false });
     const msg = (await ctx.deps.store.messages.list({ toMemberId: "mem_danny", kind: "schedule_proposal" }))[0];
-    const r = await json<Proposal>(ctx, "POST", `/messages/${msg.id}/act`, { action: "schedule_decline_all" });
+    const r = await json<Proposal>(ctx, "POST", `/messages/${msg.id}/act`, { action: "decline_all" });
     expect(r.status).toBe(200);
     const next = r.body;
     expect(next.status).toBe("proposed");

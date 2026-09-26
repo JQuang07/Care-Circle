@@ -31,7 +31,10 @@ async function sendBriefings(deps: Deps, sc: ScheduledCallRecord) {
     await sendMessage(deps, {
       toMemberId: mid, kind: "briefing",
       body: `${what} ${senior.name} starts in an hour (${formatLocal(sc.startUtc, m.tz)} your time).\n\n${starters}${host}`,
-      ...(sc.kind === "video_call" ? { actions: [{ label: "Join call", action: "open_url", payload: { url: sc.memberJoinUrls[mid], scheduledCallId: sc.id } }] } : {}),
+      actions: [
+        ...(sc.kind === "video_call" ? [{ label: "Join call", action: "call_now", payload: { scheduledCallId: sc.id, url: sc.memberJoinUrls[mid] } }] : []),
+        { label: "Got it", action: "dismiss", payload: {} },
+      ],
     });
   }
 }
