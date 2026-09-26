@@ -60,6 +60,7 @@ export interface CallEnded {
   startedAt: string; endedAt: string;
   transcript: TranscriptTurn[];
   privateSpans: { startTs: string; endTs: string }[];
+  scheduledCallId?: string; // D11
 }
 
 export interface Hook { id: string; seniorId: string; text: string; forMemberId: string; nudgeText: string; createdAt: string; }
@@ -90,7 +91,7 @@ export interface ContactRhythm {
   seniorId: string;
   perMember: {
     memberId: string; lastContactAt?: string; usualPattern?: string;
-    callsLast30d: number; everAskedForMoney: false;
+    callsLast30d: number; everAskedForMoney: boolean; // D6
   }[];
 }
 
@@ -113,7 +114,7 @@ export interface Senior {
   id: string; name: string; age: number; tz: string; phone: string; language: string;
   routine: RoutineBlock[];
 }
-export interface Dependent { name: string; age: number; schoolHours: string; }
+export interface Dependent { name: string; age: number; schoolHours: string; birthday?: string /* "MM-DD" (D7) */; }
 export interface Member {
   id: string; name: string; relation: string; tz: string; phone: string;
   whatsapp: boolean; isVerifier: boolean; dependents?: Dependent[];

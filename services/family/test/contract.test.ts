@@ -41,7 +41,7 @@ describe("GET /circle/:seniorId", () => {
     expect(body.senior).toMatchObject({ id: "sen_rose", name: "Rose", tz: "America/New_York", phone: "+1555010000" });
     expect(body.senior.routine).toHaveLength(2);
     expect(body.members.map((m: any) => m.id)).toEqual(["mem_lisa", "mem_danny", "mem_mark"]);
-    expect(body.members[0].dependents[0]).toEqual({ name: "Mia", age: 9, schoolHours: "08:00-15:30 mon-fri" });
+    expect(body.members[0].dependents[0]).toEqual({ name: "Mia", age: 9, schoolHours: "08:00-15:30 mon-fri", birthday: "10-14" });
     expect(body.members.find((m: any) => m.id === "mem_mark").isVerifier).toBe(false);
   });
 });
@@ -134,7 +134,9 @@ describe("moments + webhooks", () => {
     const r = await json(ctx, "GET", "/moments/sen_rose");
     expect(r.status).toBe(200);
     expect(Object.keys(r.body).sort()).toEqual(["addedItems", "calls", "gifts", "savedCents", "scamsStopped", "voiceNotes"]);
-    expect(r.body.calls).toBeGreaterThanOrEqual(1);
+    // Default = this calendar week (D12); Mon Sep 28 → Wed 11:00 ET has no seeded calls yet.
+    expect(r.body.calls).toBe(0);
+    expect((await json(ctx, "GET", "/moments/sen_rose?week=last7")).body.calls).toBeGreaterThanOrEqual(1);
     // Calendar week of Sep 21: Danny Sun 27, Lisa Wed 23 (+ maybe a lunch call).
     const wk = await json(ctx, "GET", "/moments/sen_rose?week=2026-09-23");
     expect(wk.body.calls).toBeGreaterThanOrEqual(2);

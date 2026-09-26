@@ -5,13 +5,13 @@ import { badRequest } from "../deps.js";
 import { getCircle } from "./circle.js";
 
 /**
- * Omitted or "last7": the rolling last 7 days ("Rose's week" on the dashboard).
- * Otherwise a calendar week, Monday 00:00 → next Monday in the senior's time zone:
- * `week` may be any date in it (YYYY-MM-DD), an ISO week (2026-W40), or "current".
+ * D12: a calendar week, Monday 00:00 → next Monday in the senior's time zone. `week` is an ISO week
+ * (2026-W39) or any date in it (YYYY-MM-DD); omitted or "current" means this week. "last7" (rolling
+ * last 7 days) is kept for older callers.
  */
 export function weekRange(week: string | undefined, tz: string, now: Date): { start: number; end: number } {
-  if (!week || week === "last7") return { start: now.getTime() - 7 * 86_400_000, end: now.getTime() + 1 };
-  const anchor = week === "current" ? DateTime.fromJSDate(now).setZone(tz)
+  if (week === "last7") return { start: now.getTime() - 7 * 86_400_000, end: now.getTime() + 1 };
+  const anchor = !week || week === "current" ? DateTime.fromJSDate(now).setZone(tz)
     : /^\d{4}-W\d{2}$/.test(week) ? DateTime.fromISO(`${week}-1`, { zone: tz }) : DateTime.fromISO(week, { zone: tz });
   if (!anchor.isValid) throw badRequest(`invalid week "${week}" (use YYYY-MM-DD, YYYY-Www, current or last7)`);
   const start = anchor.startOf("week");

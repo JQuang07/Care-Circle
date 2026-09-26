@@ -13,7 +13,7 @@ export const SENIOR_ROSE: Senior = {
 
 export const MEMBERS: Member[] = [
   { id: "mem_lisa", name: "Lisa", relation: "daughter", tz: "America/Chicago", phone: "+1555010001",
-    whatsapp: true, isVerifier: true, dependents: [{ name: "Mia", age: 9, schoolHours: "08:00-15:30 mon-fri" }] },
+    whatsapp: true, isVerifier: true, dependents: [{ name: "Mia", age: 9, schoolHours: "08:00-15:30 mon-fri", birthday: "10-14" }] },
   { id: "mem_danny", name: "Danny", relation: "grandson", tz: "America/Denver", phone: "+1555010002",
     whatsapp: true, isVerifier: true },
   { id: "mem_mark", name: "Mark", relation: "son", tz: "Europe/London", phone: "+1555010003",

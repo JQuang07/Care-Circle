@@ -68,7 +68,7 @@ export async function computeContactRhythm(deps: Deps, seniorId: string): Promis
         callsLast30d: mine.filter((c) => Date.parse(c.startedAt) >= now.getTime() - 30 * DAY).length,
         // CONTRACTS §3 types this as literal false: the app has no member→senior money-request path,
         // so no member has ever asked Rose for money through it.
-        everAskedForMoney: false as const,
+        everAskedForMoney: false,
       };
     }),
   };

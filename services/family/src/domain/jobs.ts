@@ -90,8 +90,11 @@ export async function tick(deps: Deps): Promise<{ briefings: number; reminders: 
 /** call.ended for a scheduled family call → done, moment logged, weekly offer, next occurrence if recurring. */
 export async function handleScheduledCallEnded(deps: Deps, call: CallEnded): Promise<ScheduledCallRecord | undefined> {
   const started = Date.parse(call.startedAt);
-  const candidates = (await deps.store.scheduledCalls.list({ seniorId: call.seniorId }))
-    .filter((c) => c.kind === "video_call" && ["scheduled", "ringing", "live", "missed"].includes(c.status))
+  const open = (c: ScheduledCallRecord) => c.kind === "video_call" && ["scheduled", "ringing", "live", "missed"].includes(c.status);
+  // D11: voice sends scheduledCallId; older payloads are matched by start time (±3h).
+  const byId = call.scheduledCallId ? await deps.store.scheduledCalls.get(call.scheduledCallId) : undefined;
+  const candidates = byId ? [byId].filter(open) : (await deps.store.scheduledCalls.list({ seniorId: call.seniorId }))
+    .filter(open)
     .filter((c) => Math.abs(Date.parse(c.startUtc) - started) <= 3 * 3600_000)
     .sort((a, b) => Math.abs(Date.parse(a.startUtc) - started) - Math.abs(Date.parse(b.startUtc) - started));
   const sc = candidates[0];
