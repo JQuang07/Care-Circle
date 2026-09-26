@@ -1,5 +1,5 @@
 # Agent 4 · Integrator + Web — status
-_Last updated: integration-v2, Part 1 task 1 (contracts) done._
+_Last updated: 2026-09-26. Part 1 done (tasks 1–8); Part 2 run; Part 3 waiting on A1/A2/A3 Part 1 fixes._
 
 ## Part 1 · integration-v2 checklist (docs/agents/agent-4-integrator-web.md)
 - [x] **1. Contracts package:** addendum v1.0.2 applied to `packages/contracts` (types + zod + drift guard + self-test, 28/28).
@@ -26,6 +26,18 @@ _Last updated: integration-v2, Part 1 task 1 (contracts) done._
 - [x] **7. Integration duty (recurring; tooling ready):** after each checkpoint merge run `pnpm e2e`, then `pnpm e2e:file` (dry run) → `pnpm e2e:file --write`. `scripts/file-bugs.ts` files each failure under `## BUGS FROM INTEGRATION` in the owner's status file (voice → A1, money → A2, family/delivery → A3) with expected/actual and the last request/response, replaces the "none yet" placeholder, never duplicates an entry (HTML-comment marker), and touches nothing outside that heading. web/contract failures are listed, not filed. Tested with a planted bug (write, re-run = 0 new, reverted).
   - Not filed yet: no checkpoint merge has happened, and today's 7 failures (table below) are all tasks already assigned in the runbooks. First real filing: after the Part-1 checkpoint merge.
 - [x] **8. Final README:** architecture (5 services + web, Mermaid diagram and table, grocery flow), how to run, pages, a mock-vs-real table (D15 semantics), the plain "DoorDash is an unofficial third-party integration" section (dry run by default, one human-confirmed live order at most), tests, layout and team. Claims checked against each service README. Re-check the mock-vs-real rows at the H62 freeze if any provider changes.
+
+## Part 2 · Verify (2026-09-26, `pnpm dev` running, delivery on mock)
+- `pnpm health`: **5 green** (voice, money, family, delivery, web).
+- `pnpm e2e:selftest 10`: **13/13, 10 runs in a row**.
+- `pnpm e2e` (live): **6/13**. Same 7 failures as the integration report, all owned by other agents (table under "Integration report").
+- Browser, `/demo`: health strip shows all four services (mock). **"Place real order" is not rendered** (provider mock). "Grocery happy path" starts the call, but the order stays `approved` (voice doesn't take Rose's "yes" yet, A1 D16), so there's no paid order, no delivery, and no `add_to_order` for Lisa yet. "Reset all data" → "Reset 2 of 4": family + delivery reset; money + voice 404 (their D1).
+
+## Part 3 · "Service is up" checklist
+- [x] `pnpm health` shows 5 green; `pnpm typecheck` and `pnpm build:web` pass.
+- [ ] E2E 1–5 pass against the live services (delivery on mock); the self-test passes 10 runs in a row. Self-test ✅ 10/10. Live ❌ 6/13, blocked on A1 D16 + D1 reset, A2 D15 events + D1 reset, A3 D5 `accept_slot` payloads.
+- [x] The DRY RUN badge shows; the live button is hidden unless the real provider + live flag are on, and needs the typed phrase. Verified in Chrome on mock (hidden) and against a fake armed delivery (shown, disabled until name + exact phrase, proxy re-checks the phrase and adds the secret).
+- [ ] Reset clears all 5 services. Web resets family → money → delivery → voice; family + delivery clear; **money and voice 404** until their D1 `/demo/reset` lands.
 
 ## Done
 - **Monorepo:** pnpm workspace (`packages/contracts`, `services/{voice,money,family}`, `apps/web`, `e2e`), Node ≥22.12, pnpm 10 pinned.
