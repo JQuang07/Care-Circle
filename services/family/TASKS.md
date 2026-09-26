@@ -77,7 +77,8 @@ Legend: `[x]` done · `[ ]` open · **DoD** = definition-of-done item.
 - [x] `pnpm --filter @care-circle/delivery test` green (15, every safety gate; no gate touched)
 - [ ] switch `src/types.ts` to `@care-circle/contracts` once `Quote`, `QuoteLine`, `DeliveryOrder` reach `main` (only on `origin/claire` so far)
 ### Part 3 · Verify against the real services
-- [ ] `pnpm health` 5 green; `pnpm e2e` E2E 2 and E2E 5 pass; delivery `/quote` curl; delivery message in Lisa's inbox after a paid grocery order (needs Arpit's tasks 4–5)
+- [x] `pnpm health` 5 green
+- [ ] E2E: ran 2026-09-27; failures are in voice/money (see status/AGENT-3.md → BUGS). Rerun after their fixes. Still to do: `pnpm e2e` E2E 2 and E2E 5 pass; delivery `/quote` curl; delivery message in Lisa's inbox after a paid grocery order (needs Arpit's tasks 4–5)
 ### Part 4 · DoorDash MCP (human + Claude): see the runbook
 
 ## Environment notes

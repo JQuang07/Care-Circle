@@ -46,5 +46,10 @@ Also owns `services/delivery` on **:4004** (D14). Run everything with `pnpm dev`
 9. **CCR-9 (auth scope).** Family requires `X-CC-Secret` on `/webhooks/*`, `/circle/*`, `/jobs/*`, `/demo/*`. Other routes stay open so the web app can call them. Set `FAMILY_REQUIRE_SECRET_ALL=1` to lock everything once web calls go server-side.
 
 ## BUGS FROM INTEGRATION
+- **Live E2E run (2026-09-27, all services on this branch's code, `pnpm health` 5 green): 0 of 5 pass, and none of the failures are in family or delivery.**
+  - E2E 1 and E2E 5 (Agents 1 and 2): the grocery order stays `approved` and never becomes `paid`, so the voice confirm → money `/orders/:id/confirm` step doesn't happen. E2E 5's privacy checks never ran.
+  - E2E 2 (Agent 1): family now sends Lisa and Danny the proposal (D10 fix confirmed), then voice `POST /demo/simulate-inbound` → HTTP 500 INTERNAL_ERROR.
+  - E2E 3 (Agent 2): no fraud card within 60s, so no hold event reached family.
+  - E2E 4 (Agent 2): Mia's gift was falsely held with `GIFT_CARD_NONMEMBER` and `SECRECY` (D7 says a gift with `recipientMemberId: mem_lisa` must pass).
 - **For Agent 1 (`services/voice/src/app.ts` `/webhooks/scheduled-call-due`):** it enqueues `due:${call.id}` without reading `phase`, so the T-30 **reminder** looks the same as T-0 and may ring Rose 30 minutes early. Family now sends `phase: "reminder" | "due"` in the body (D4); please branch on it.
 - **For Agent 4 (root `scripts/seed.ts:50`): `pnpm seed` fails on Windows.** It prints "family seed failed (exit null)" because Node can't find `pnpm.cmd` when `spawnSync("pnpm", …)` runs without a shell. Fix: `spawnSync("pnpm", args, { …, shell: process.platform === "win32" })`. Workaround until then: run `npx dotenv -e .env -- pnpm --filter @care-circle/<svc> run seed` for family, money, delivery and voice, in that order.
