@@ -1,4 +1,13 @@
 # Agent 4 · Integrator + Web — status
+
+## Current user-directed integration on arpit
+
+- User requested Agent 4 work on arpit, overriding the runbook branch claire.
+- Merged origin/main, Claire's completed Agent 4 implementation (3194bff), and Jayden's tested voice work (58ee507), preserving Arpit's existing commits.
+- Contracts runtime tests, workspace typecheck and production web build pass on the merged branch; repeated self-tests are underway.
+- Shared secret configured only in ignored root .env. Docker/Postgres acceptance remains pending local Docker installation.
+- Reviewing and correcting test-script compatibility before actual-service integration checks.
+
 _Last updated: 2026-09-26. Part 1 done (tasks 1–8); Part 2 run; Part 3 waiting on A1/A2/A3 Part 1 fixes._
 
 ## Part 1 · integration-v2 checklist (docs/agents/agent-4-integrator-web.md)
