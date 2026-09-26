@@ -36,6 +36,12 @@ function secretOk(given: unknown, expected: string): boolean {
 export async function buildApp(deps: Deps, opts: { logger?: boolean } = {}): Promise<FastifyInstance> {
   const app = Fastify({ logger: opts.logger ?? false, bodyLimit: 2 * 1024 * 1024 });
   await app.register(cors, { origin: true });
+  // Be lenient with callers: an empty body with content-type JSON means {}.
+  app.addContentTypeParser("application/json", { parseAs: "string" }, (_req, body, done) => {
+    const text = String(body ?? "").trim();
+    if (!text) return done(null, {});
+    try { done(null, JSON.parse(text)); } catch (err) { (err as any).statusCode = 400; done(err as Error, undefined); }
+  });
 
   const pending = new Set<Promise<unknown>>();
   app.decorate("flushJobs", async () => { while (pending.size) await Promise.allSettled([...pending]); });

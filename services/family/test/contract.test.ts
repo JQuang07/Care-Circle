@@ -20,6 +20,14 @@ describe("health + auth", () => {
     expect(r.status).toBe(200);
   });
 
+  it("accepts an empty JSON body and rejects malformed JSON with 400", async () => {
+    const empty = await ctx.app.inject({ method: "POST", url: "/jobs/tick", headers: { ...ctx.h, "content-type": "application/json" }, payload: "" });
+    expect(empty.statusCode).toBe(200);
+    const bad = await ctx.app.inject({ method: "POST", url: "/schedule/request", headers: { "content-type": "application/json" }, payload: "{nope" });
+    expect(bad.statusCode).toBe(400);
+    expect(JSON.parse(bad.body).error.code).toBe("BAD_REQUEST");
+  });
+
   it("errors use the contract shape", async () => {
     const r = await json(ctx, "GET", "/contact-rhythm/sen_nobody");
     expect(r.status).toBe(404);

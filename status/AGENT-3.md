@@ -12,8 +12,10 @@ Run: `cd services/family && npm install && npm run dev` (seeds itself on first b
 
 - **Phase 2:** post-call pipeline (privateSpans stripped before Muse → hooks → routing → warm nudges, ≤1/member/day), health/complaint/guilt filters, family code word never written into messages (checked by hash), `order-paid` → `add_to_order` ("Add something" = *coming soon* in v1, voice note for delivery) + receipts to funders, voice notes stored per order, messages API. **DoD test: private span never appears in any hook, nudge, or briefing.**
 
+- **Phase 3:** fraud cards to verifiers (cancel → money, approve requires passkey assertion, "I'm calling her" notifies the other verifier), all-clear + code-word practice reminder. Scheduling: hard constraints in code (Rose 10–19 local, nap, church, booked rides, existing calls; members' availability + tz; Mia outside school, only via Lisa), Muse ranks + writes reasons (bad picks dropped), proposals → accepts → `awaiting_senior` → `confirm-senior` → LiveKit room + join URLs → T-60 briefing, T-30 reminder, T-0 `scheduled_call.due` + `ringing`. Weekly calls with fair host rotation, visits (+ groceries hint for Rose), `ai_rhythm` job, moments. **All four DoD tests pass**; verified live with real LiveKit + Muse (`dev/scenario.ts`).
+
 ## In progress
-- Phase 3: fraud cards, full scheduling flow, briefings/due events, rhythm job, moments.
+- Phase 4: edge cases (no common slot, declines, time-zone boundaries, DST).
 
 ## Blocked on
 - **Postgres on this machine (human):** `localhost:5432` reaches a *native* Windows PostgreSQL service (`postgresql-x64-16`/`-17`), not the `cc-pg` Docker container, so `postgres:dev` is rejected. Until the native services are stopped (or `.env` points elsewhere), family runs on its in-memory store (`MOCK=1`); data resets on restart.
