@@ -1,8 +1,7 @@
-import type { HardRuleContext, HardRuleHit, OrderRequest } from './types';
+import type { FraudSignal, HardRuleCode, HardRuleContext, OrderRequest } from './types';
 
 export const NEW_PAYEE_LIMIT_CENTS = 5000; // $50
 
-// Normalize so curly quotes / "do not" / extra spaces can't dodge the patterns.
 export function normalize(s = ''): string {
   return s
     .toLowerCase()
@@ -12,6 +11,15 @@ export function normalize(s = ''): string {
     .replace(/\s+/g, ' ')
     .trim();
 }
+
+// The contract's OrderType has no gift_card/wire/crypto values, so the payment
+// rail is detected deterministically from what is being bought and from whom.
+const RAIL_PATTERNS: Record<'gift_card' | 'wire' | 'crypto' | 'money_transfer', RegExp> = {
+  gift_card: /\bgift ?cards?\b|\bitunes\b|\bgoogle play\b|\bsteam (card|wallet)\b|\bprepaid (visa|card)s?\b|\bvanilla (visa|gift)\b|\breloadit\b|\bgreen ?dot\b/,
+  wire: /\bwire\b|\bwestern union\b|\bmoneygram\b/,
+  crypto: /\bcrypto(currency)?\b|\bbitcoin\b|\bbtc\b|\bethereum\b|\busdt\b|\btether\b|\bcoinbase\b/,
+  money_transfer: /\bzelle\b|\bvenmo\b|\bcash ?app\b|\bpaypal\b|\bmoney transfer\b|\bmoney order\b|\bsend (the )?money\b|\bsafe account\b/,
+};
 
 const SECRECY_PATTERNS: RegExp[] = [
   /\bdon't tell\b/,
@@ -26,36 +34,53 @@ const CASH_COURIER_PATTERNS: RegExp[] = [
   /\b(cash|money)\b.{0,30}\b(will be|to be|gets?) (picked up|collected)\b/,
 ];
 
-/** Pure. Every hit is a hard stop that no model output can override. */
-export function hardRules(req: OrderRequest, ctx: HardRuleContext): HardRuleHit[] {
-  const hits: HardRuleHit[] = [];
-  const text = normalize([req.statedReason, req.transcriptExcerpt, req.note].filter(Boolean).join(' \n '));
+export function detectRails(req: OrderRequest): string[] {
+  const what = normalize([req.payeeDescription, ...req.items.map((i) => i.name)].filter(Boolean).join(' | '));
+  return (Object.keys(RAIL_PATTERNS) as (keyof typeof RAIL_PATTERNS)[]).filter((k) => RAIL_PATTERNS[k].test(what));
+}
 
-  if (req.category === 'gift_card' &&
+/** Never trust a lower client total: use the larger of amountCents and the priced items. */
+export function effectiveAmountCents(req: OrderRequest): number {
+  const itemsSum = req.items.reduce((s, i) => s + (i.priceCents ?? 0) * (i.qty || 0), 0);
+  return Math.max(req.amountCents, itemsSum);
+}
+
+const sig = (code: HardRuleCode, description: string): FraudSignal => ({ layer: 1, code, description, weight: 0 });
+
+/** Pure. Every signal returned is a hard stop no model output can override. */
+export function hardRules(req: OrderRequest, ctx: HardRuleContext): FraudSignal[] {
+  const out: FraudSignal[] = [];
+  const text = normalize([req.context.statedReason, req.context.transcriptExcerpt].filter(Boolean).join(' \n '));
+  const rails = detectRails(req);
+  const amount = effectiveAmountCents(req);
+
+  if (rails.includes('gift_card') &&
       (!req.recipientMemberId || !ctx.circleMemberIds.has(req.recipientMemberId))) {
-    hits.push({ code: 'GIFT_CARD_NONMEMBER', detail: 'Gift card recipient is not a circle member' });
+    out.push(sig('GIFT_CARD_NONMEMBER', 'Gift cards for someone outside the family circle'));
   }
 
-  if (ctx.blockedCategories.has(req.category)) {
-    hits.push({ code: 'BLOCKED_CATEGORY', detail: `Category ${req.category} is blocked` });
+  for (const rail of rails) {
+    if (rail !== 'gift_card' && ctx.blockedCategories.has(rail)) {
+      out.push(sig('BLOCKED_CATEGORY', `Payment by ${rail.replace('_', ' ')} is blocked`));
+    }
   }
 
-  if (!req.merchantId && req.amountCents > NEW_PAYEE_LIMIT_CENTS) {
-    hits.push({ code: 'NEW_PAYEE', detail: 'Unknown payee over $50' });
+  const unknownPayee = !req.merchantId || !ctx.knownMerchantIds.has(req.merchantId);
+  if (unknownPayee && amount > NEW_PAYEE_LIMIT_CENTS) {
+    out.push(sig('NEW_PAYEE', 'New or unknown payee for more than $50'));
   }
 
-  if (req.amountCents > ctx.perPurchaseCapCents ||
-      ctx.spentThisMonthCents + req.amountCents > ctx.monthlyCapCents) {
-    hits.push({ code: 'OVER_CAP', detail: 'Exceeds per-purchase or monthly cap' });
+  if (amount > ctx.perPurchaseCapCents || ctx.spentThisMonthCents + amount > ctx.monthlyCapCents) {
+    out.push(sig('OVER_CAP', 'Over the per-purchase or monthly limit'));
   }
 
   if (SECRECY_PATTERNS.some((p) => p.test(text))) {
-    hits.push({ code: 'SECRECY', detail: 'Secrecy language in request context' });
+    out.push(sig('SECRECY', 'Someone asked to keep this secret'));
   }
 
   if (CASH_COURIER_PATTERNS.some((p) => p.test(text))) {
-    hits.push({ code: 'CASH_COURIER', detail: 'Cash pickup by a third party mentioned — alert family' });
+    out.push(sig('CASH_COURIER', 'Someone plans to pick up cash in person'));
   }
 
-  return hits;
+  return out;
 }
