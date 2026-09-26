@@ -14,8 +14,10 @@ Run: `cd services/family && npm install && npm run dev` (seeds itself on first b
 
 - **Phase 3:** fraud cards to verifiers (cancel → money, approve requires passkey assertion, "I'm calling her" notifies the other verifier), all-clear + code-word practice reminder. Scheduling: hard constraints in code (Rose 10–19 local, nap, church, booked rides, existing calls; members' availability + tz; Mia outside school, only via Lisa), Muse ranks + writes reasons (bad picks dropped), proposals → accepts → `awaiting_senior` → `confirm-senior` → LiveKit room + join URLs → T-60 briefing, T-30 reminder, T-0 `scheduled_call.due` + `ringing`. Weekly calls with fair host rotation, visits (+ groceries hint for Rose), `ai_rhythm` job, moments. **All four DoD tests pass**; verified live with real LiveKit + Muse (`dev/scenario.ts`).
 
+- **Phase 4:** no common slot → next-best slots + "could you flex?" (Rose's constraints never relaxed); full declines → re-plan (max 3 rounds, then ask for a time); stale slot taps → 409 `SLOT_EXPIRED`; availability across midnight; DST (UK Oct 25 / US Nov 1: Mark is 8pm, not 9pm, on Oct 25; weekly calls keep local time); missed calls; demo reset/time-travel. 78 tests passing.
+
 ## In progress
-- Phase 4: edge cases (no common slot, declines, time-zone boundaries, DST).
+- Nothing. Standing by for integration bugs. Ready for Checkpoint merges.
 
 ## Blocked on
 - **Postgres on this machine (human):** `localhost:5432` reaches a *native* Windows PostgreSQL service (`postgresql-x64-16`/`-17`), not the `cc-pg` Docker container, so `postgres:dev` is rejected. Until the native services are stopped (or `.env` points elsewhere), family runs on its in-memory store (`MOCK=1`); data resets on restart.

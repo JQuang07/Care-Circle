@@ -159,14 +159,29 @@ async function replan(deps: Deps, p: ProposalRecord): Promise<void> {
 }
 
 export async function respondToProposal(deps: Deps, id: string, body: { memberId: string; slotId: string; accept: boolean }): Promise<Proposal> {
-  const p = await loadProposal(deps, id);
   if (!body?.memberId || !body.slotId || typeof body.accept !== "boolean") throw badRequest("memberId, slotId and accept are required");
-  if (!p.memberIds.includes(body.memberId)) throw new AppError(403, "NOT_INVITED", `${body.memberId} is not part of this proposal`);
-  if (!p.slots.some((s) => s.id === body.slotId)) throw badRequest(`slot ${body.slotId} is not in this proposal`, "UNKNOWN_SLOT");
-  if (p.status === "confirmed" || p.status === "cancelled") throw conflict(`proposal is ${p.status}`, "PROPOSAL_CLOSED");
+  return applyResponses(deps, id, body.memberId, [{ slotId: body.slotId, accept: body.accept }]);
+}
 
-  p.responses = p.responses.filter((r) => !(r.memberId === body.memberId && r.slotId === body.slotId));
-  p.responses.push({ memberId: body.memberId, slotId: body.slotId, accept: body.accept });
+export async function declineAll(deps: Deps, id: string, memberId: string): Promise<Proposal> {
+  const p = await loadProposal(deps, id);
+  return applyResponses(deps, id, memberId, p.slots.map((s) => ({ slotId: s.id, accept: false })));
+}
+
+/** Records one member's answers atomically, then re-evaluates the proposal once. */
+async function applyResponses(deps: Deps, id: string, memberId: string, answers: { slotId: string; accept: boolean }[]): Promise<Proposal> {
+  const p = await loadProposal(deps, id);
+  if (!p.memberIds.includes(memberId)) throw new AppError(403, "NOT_INVITED", `${memberId} is not part of this proposal`);
+  if (p.status === "confirmed" || p.status === "cancelled") throw conflict(`proposal is ${p.status}`, "PROPOSAL_CLOSED");
+  for (const a of answers) {
+    if (!p.slots.some((s) => s.id === a.slotId)) {
+      // A tap on an older round's button (after a re-plan) is stale, not malformed.
+      throw p.round > 1 ? conflict("those times were replaced with new options; check the latest message", "SLOT_EXPIRED")
+        : badRequest(`slot ${a.slotId} is not in this proposal`, "UNKNOWN_SLOT");
+    }
+    p.responses = p.responses.filter((r) => !(r.memberId === memberId && r.slotId === a.slotId));
+    p.responses.push({ memberId, slotId: a.slotId, accept: a.accept });
+  }
 
   const wasAwaiting = p.status === "awaiting_senior";
   const common = commonSlots(p);
@@ -184,13 +199,6 @@ export async function respondToProposal(deps: Deps, id: string, body: { memberId
   }
   await deps.store.proposals.put(p);
   return toProposal(p);
-}
-
-export async function declineAll(deps: Deps, id: string, memberId: string): Promise<Proposal> {
-  const p = await loadProposal(deps, id);
-  let last: Proposal = toProposal(p);
-  for (const s of p.slots) last = await respondToProposal(deps, id, { memberId, slotId: s.id, accept: false });
-  return last;
 }
 
 /** Fair rotation: fewest hosted so far, then least recently hosted, then circle order. */

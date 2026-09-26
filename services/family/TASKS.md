@@ -56,11 +56,12 @@ Legend: `[x]` done · `[ ]` open · **DoD** = definition-of-done item.
 - [x] **DoD:** `/contact-rhythm` feeds Agent 2's layer 4 correctly in the scam scenario (test: `test/fraud.test.ts`)
 
 ## Phase 4 · Harden (H50–62)
-- [ ] No common slot → propose next best + ask who can flex
-- [ ] Declined slot(s) → re-plan
-- [ ] Time-zone boundaries (slot crossing midnight for Mark) + DST transitions (UK Oct 25, US Nov 1 2026)
-- [ ] Missed calls (no `call.ended` after T+90m → `missed`)
-- [ ] Demo helpers: reset/seed, clock fast-forward
+- [x] No common slot → propose next best (Rose's constraints never relaxed) + ask who can flex; 422 `NO_SLOTS` if truly nothing
+- [x] Declined slot(s) → re-plan with fresh times (atomic decline-all; stale buttons → 409 `SLOT_EXPIRED`); after 3 rounds ask the family for a time
+- [x] Declining the agreed slot drops `awaiting_senior` back to `proposed`; confirm rejects past slots
+- [x] Time-zone boundaries (availability chains across midnight) + DST transitions (UK Oct 25, US Nov 1 2026; weekly calls keep local wall-clock time)
+- [x] Missed calls (no `call.ended` after T+90m → `missed`)
+- [x] Demo helpers: reset/seed, clock fast-forward (`/demo/*`, secret-protected)
 
 ## Environment notes
 - `localhost:5432` currently reaches a native Windows PostgreSQL service, not the `cc-pg` container, so the service runs on the in-memory store under `MOCK=1` (see status/AGENT-3.md → Blocked on).

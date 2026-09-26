@@ -58,15 +58,25 @@ export function localDaysTouched(iv: Interval, tz: string): DateTime[] {
   return out;
 }
 
-/** Is [iv] fully inside the union of weekly windows (local, in tz)? */
+const COVER_STEP = 15 * 60_000;
+
+/**
+ * Is [iv] fully inside the union of weekly windows (local, in tz)?
+ * Checked in 15-minute steps against each step's own local day, so windows can chain across
+ * midnight ("23:00-24:00" + "00:00-01:00") and DST shifts are handled by luxon.
+ */
 export function withinWeekly(iv: Interval, tz: string, windows: { days: Set<number>; start: number; end: number }[]): boolean {
-  // A slot must sit inside a single window on one local day (slots are short; no cross-midnight windows).
-  const day = DateTime.fromMillis(iv.start, { zone: tz });
-  return windows.some((w) => {
-    if (!w.days.has(day.weekday)) return false;
-    const win = localWindow(day, w.start, w.end);
-    return iv.start >= win.start && iv.end <= win.end;
-  });
+  for (let t = iv.start; t < iv.end; t += COVER_STEP) {
+    const day = DateTime.fromMillis(t, { zone: tz });
+    const stepEnd = Math.min(t + COVER_STEP, iv.end);
+    const covered = windows.some((w) => {
+      if (!w.days.has(day.weekday)) return false;
+      const win = localWindow(day, w.start, w.end);
+      return t >= win.start && stepEnd <= win.end;
+    });
+    if (!covered) return false;
+  }
+  return true;
 }
 
 /** Does [iv] hit any weekly block (local, in tz)? Checks every local day the interval touches. */
