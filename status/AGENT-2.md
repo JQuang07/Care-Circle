@@ -1,3 +1,10 @@
+# Current Agent 2 integration — arpit
+
+- Mistaken Agent 4 integration was reverted in 0021c99. Common main setup reapplied without Agent 4/Jayden feature branches.
+- D15 complete: MOCK=1 uses real family HTTP/events unless MOCK_DEPENDENCIES=1; configured Postgres is used in mock mode too. Mocking providers no longer replaces deterministic fraud checks with canned assessments.
+- Validation: 117 tests passed, 1 Postgres test skipped; money typecheck passed.
+- Shared secret configured in ignored .env. Docker/Postgres and live providers remain unverified.
+
 # AGENT-2 · Money & Fraud — status
 
 ## Done
