@@ -16,7 +16,7 @@ _Last updated: integration-v2, Part 1 task 1 (contracts) done._
   - **Refuses to run** unless delivery `/health` is `provider: "mock"`, `liveCheckout: false` (planted `live-provider` bug → "REFUSING TO RUN").
   - D16 guard test: every purchase script ends with a line that confirms under the addendum rule.
   - Fake stack: delivery mock on :5004, `/demo/reset` everywhere, money `GET /orders/:id` + `fulfilment`.
-- [ ] 3. Demo reset chain: family → money → delivery → voice
+- [x] **3. Demo reset chain:** "Reset all data" calls `/demo/reset` on family → money → delivery → voice (`RESET_ORDER` in `lib/services.ts`), tries every service even if one fails, and names each failure. Delivery added to the web proxy (health, orders, reset; `/demo/advance` stays blocked) and the `/demo` health strip. Verified through the proxy: family + delivery `{ ok: true }`; money + voice 404 until their D1 task lands.
 - [ ] 4. Web delivery UI: status/ETA/tracking, DRY RUN badge, `unmatchedItems`
 - [ ] 5. Web demo panel DoorDash controls (quote table; guarded "Place real order" via the proxy)
 - [ ] 6. `/call/:id` joins LiveKit via family `/schedule/calls/:id/join`

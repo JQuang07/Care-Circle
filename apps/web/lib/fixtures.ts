@@ -1,7 +1,7 @@
 /**
  * Sample data shown ONLY when a service is unreachable, always under a visible
  * "sample data" banner. Every object is typed against CONTRACTS.md §3, and action
- * payloads follow the shapes proposed in CCR-05.
+ * payloads follow the D5 shapes (CONTRACTS-ADDENDUM.md).
  */
 import type { Hold, Message, Order, ScheduledCall, Slot } from "@care-circle/contracts";
 

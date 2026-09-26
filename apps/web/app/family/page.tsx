@@ -67,7 +67,7 @@ export default function FamilyPhones() {
   const releaseWithPasskey = async (): Promise<string | undefined> => {
     if (!passkey) return;
     const holdId: string | undefined = passkey.action.payload?.holdId;
-    if (!holdId) return "This card doesn't say which hold it's about (payload.holdId is missing; see CCR-05).";
+    if (!holdId) return "This card doesn't say which hold it's about (payload.holdId is missing; D5 requires { orderId, holdId }).";
     if (sampleRef.current) { toast(passkey.owner.id, "Sample data: nothing was released."); return; }
     const r = await svc("money", `/holds/${holdId}/resolve`, {
       method: "POST",
