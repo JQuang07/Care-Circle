@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { Credential, FraudAssessment, Hold, Order, OrderRequest } from './contracts';
+import type { Credential, DeliveryStatus, FraudAssessment, Hold, Order, OrderRequest } from './contracts';
 import { ApiError } from './errors';
 import type { Events } from './events';
 import type { FamilyClient } from './family';
@@ -150,6 +150,29 @@ export class MoneyService {
     const circle = await this.d.family.getCircle(seniorId);
     const spent = spentThisMonth(await loadLedger(this.d.store, seniorId, now), now, circle.senior.tz);
     return { ...cred, spentThisMonthCents: spent, remainingThisMonthCents: Math.max(0, cred.monthlyCapCents - spent) };
+  }
+
+  async deliveryStatus(body: unknown): Promise<Order> {
+    const b = (body ?? {}) as Record<string, unknown>;
+    const statuses = ['cart_ready', 'dry_run_complete', 'awaiting_live_checkout', 'placed', 'picked_up', 'delivered', 'failed'];
+    if (typeof b.orderId !== 'string' || typeof b.deliveryId !== 'string' || !b.deliveryId ||
+        typeof b.status !== 'string' || !statuses.includes(b.status) ||
+        ['etaText', 'trackingUrl', 'failureReason'].some(k => b[k] !== undefined && typeof b[k] !== 'string')) {
+      throw new ApiError(400, 'BAD_REQUEST', 'Invalid delivery status event');
+    }
+    const order = await this.getOrder(b.orderId);
+    if (order.status !== 'paid' || !order.fulfilment?.quoteId) {
+      throw new ApiError(409, 'DELIVERY_NOT_EXPECTED', 'Delivery requires a paid, quoted order');
+    }
+    const previous = order.fulfilment.delivery;
+    if (previous && previous.deliveryId !== b.deliveryId) throw new ApiError(409, 'DELIVERY_MISMATCH', 'Delivery ID differs');
+    // Duplicate or out-of-order callbacks must not move a delivery backwards.
+    if (previous && (previous.status === 'delivered' || previous.status === 'failed' ||
+        statuses.indexOf(b.status) < statuses.indexOf(previous.status))) return order;
+    order.fulfilment.delivery = { ...previous, deliveryId: b.deliveryId, status: b.status as DeliveryStatus['status'],
+      ...Object.fromEntries(['etaText', 'trackingUrl', 'failureReason'].filter(k => b[k] !== undefined).map(k => [k, b[k]])) };
+    await this.d.store.saveOrder(order);
+    return order;
   }
 
   async getOrder(orderId: string): Promise<Order> {

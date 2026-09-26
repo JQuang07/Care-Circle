@@ -39,6 +39,10 @@ export function buildApp(o: AppOptions): FastifyInstance {
 
   app.get('/health', async () => ({ ok: true, service: 'money', mock: o.mock }));
 
+  app.post('/webhooks/delivery-status', async (req) => {
+    if (!o.secret) throw new ApiError(503, 'SECRET_REQUIRED', 'Configure the internal secret');
+    return o.service.deliveryStatus(req.body);
+  });
   app.post('/fraud/assess', async (req) => o.service.assess(parseOrderRequest(req.body)));
   app.post('/orders/draft', async (req) => o.service.draft(parseOrderRequest(req.body)));
   app.post<{ Params: { id: string } }>('/orders/:id/confirm', async (req) => o.service.confirm(req.params.id));

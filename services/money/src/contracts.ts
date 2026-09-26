@@ -40,6 +40,7 @@ export interface FraudAssessment {
 export interface Order {
   id: string; seniorId: string; request: OrderRequest;
   status: 'draft' | 'approved' | 'held' | 'cancelled' | 'paid';
+  fulfilment?: Fulfilment;
   fraud: FraudAssessment; holdId?: string; receiptUrl?: string; createdAt: string;
 }
 
@@ -72,4 +73,14 @@ export interface Circle { senior: Senior; members: Member[] }
 export interface Credential {
   seniorId: string; perPurchaseCapCents: number; monthlyCapCents: number;
   blockedCategories: string[]; fundedBy: string[];
+}
+
+export interface DeliveryStatus {
+  deliveryId: string;
+  status: 'cart_ready' | 'dry_run_complete' | 'awaiting_live_checkout' | 'placed' | 'picked_up' | 'delivered' | 'failed';
+  etaText?: string; trackingUrl?: string; failureReason?: string;
+}
+export interface Fulfilment {
+  provider: 'mock' | 'doordash_thirdparty'; storeName: string; quoteId?: string;
+  unmatchedItems?: string[]; delivery?: DeliveryStatus;
 }

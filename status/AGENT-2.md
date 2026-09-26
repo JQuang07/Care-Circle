@@ -1,3 +1,5 @@
+D14 delivery receiver implemented: authenticated, validated, idempotent, and rejects backward status changes. Tests pass.
+
 D9 order lookup implemented, including authenticated access and contract-shaped 404; money tests pass.
 
 # Current Agent 2 integration — arpit
