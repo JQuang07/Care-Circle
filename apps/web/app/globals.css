@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+/*
+ * Care Circle palette. Named after the family code word ("blue heron") and Rose's garden.
+ * One typeface: Atkinson Hyperlegible, drawn for low-vision readers. The phones use the
+ * device's own system font so they read as phones, not as our app.
+ */
+@theme {
+  --color-ink: #1e2b33;      /* text */
+  --color-heron: #56707f;    /* structure, secondary text */
+  --color-mist: #eef2f0;     /* page */
+  --color-leaf: #2f7a4a;     /* go: answer, approve, paid */
+  --color-alarm: #b3261e;    /* fraud, holds */
+  --color-honey: #e8b04a;    /* waiting on someone */
+
+  --color-chat-bar: #0b5c4e;
+  --color-chat-wall: #e9e2d8;
+  --color-chat-out: #d9fdd3;
+
+  --font-sans: "Atkinson Hyperlegible", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-phone: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+html { background: var(--color-mist); color: var(--color-ink); }
+body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+
+:focus-visible { outline: 3px solid var(--color-heron); outline-offset: 2px; border-radius: 4px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+
+/* The one orchestrated moment: a fraud card arriving on a phone. */
+@keyframes flag-in {
+  0% { transform: translateY(6px); box-shadow: 0 0 0 0 rgb(179 38 30 / 0.5); }
+  60% { transform: none; box-shadow: 0 0 0 10px rgb(179 38 30 / 0); }
+  100% { box-shadow: 0 0 0 0 rgb(179 38 30 / 0); }
+}
+.flag-in { animation: flag-in 900ms ease-out 1; }
