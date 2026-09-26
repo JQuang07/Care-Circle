@@ -69,7 +69,7 @@ Legend: `[x]` done · `[ ]` open · **DoD** = definition-of-done item.
 - [x] 2. **D5 action vocabulary:** `accept_slot` / `decline_all` (payload `{ proposalId, slotId, slot }`), `cancel_hold` / `release_hold` / `calling_her` (`{ orderId, holdId }`), `add_item` / `record_voice_note` (`{ orderId }`), `call_now` / `dismiss` (`{ hookId? }`); clients may add only `voiceNoteUrl`, `passkeyAssertion`, `note`, `slotId`
 - [x] 3. **D2 + D4:** `POST /demo/fire-due { scheduledCallId }`; `phase: "reminder" | "due"` in the `scheduled-call-due` body (keep `X-CC-Phase`)
 - [x] 4. **D6/D7/D11/D12:** `everAskedForMoney: boolean`; Mia `birthday: "10-14"`; join/proposal/seniorHints/voice-notes endpoints; `/moments?week=` ISO week, default = current week in Rose's tz
-- [ ] 5. `POST /webhooks/delivery-status` (secret, idempotent by `deliveryId` + `status`): dry run → Lisa; placed/picked_up → ETA note; delivered → circle + voice `/calls/outbound`; failed → verifiers
+- [x] 5. `POST /webhooks/delivery-status` (secret, idempotent by `deliveryId` + `status`): dry run → Lisa; placed/picked_up → ETA note; delivered → circle + voice `/calls/outbound`; failed → verifiers
 - [ ] 6. Config: `FAMILY_PORT ?? 4003` only (no `PORT`); `contracts-local.ts` → `@care-circle/contracts` once the addendum types are published
 - [ ] 7. Postgres test runs against Docker's database
 ### Part 2 · Delivery upkeep

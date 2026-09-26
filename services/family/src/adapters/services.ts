@@ -22,9 +22,20 @@ async function call<T>(cfg: Config, base: string, method: string, path: string, 
 
 export type DuePhase = "reminder" | "due";
 
+export interface OutboundCallBody { seniorId: string; purpose: string; scheduledCallId?: string; roomName?: string; orderId?: string }
+
 /** Agent 1 · voice (:4001) */
 export interface VoiceClient {
   scheduledCallDue(call: ScheduledCall, phase: DuePhase): Promise<void>;
+  outbound(body: OutboundCallBody): Promise<{ callId: string }>;
+}
+
+/** The delivery order fields family needs (services/delivery, :4004, D14). */
+export interface DeliveryOrderInfo { deliveryId: string; orderId: string; seniorId: string; storeName: string; status: string }
+
+/** Agent 3 · delivery (:4004) */
+export interface DeliveryClient {
+  getDelivery(deliveryId: string): Promise<DeliveryOrderInfo>;
 }
 
 /** Agent 2 · money (:4002) */
@@ -40,7 +51,12 @@ export function httpVoiceClient(cfg: Config): VoiceClient {
       // D4: the phase is in the body; the X-CC-Phase header stays for older readers.
       await call(cfg, cfg.voiceUrl, "POST", "/webhooks/scheduled-call-due", { ...sc, phase }, { "X-CC-Phase": phase });
     },
+    outbound: (body) => call(cfg, cfg.voiceUrl, "POST", "/calls/outbound", body),
   };
+}
+
+export function httpDeliveryClient(cfg: Config): DeliveryClient {
+  return { getDelivery: (id) => call(cfg, cfg.deliveryUrl, "GET", `/orders/${encodeURIComponent(id)}`) };
 }
 
 export function httpMoneyClient(cfg: Config): MoneyClient {
@@ -52,9 +68,25 @@ export function httpMoneyClient(cfg: Config): MoneyClient {
 }
 
 // ---- Recording fakes for tests ----
-export function recordingVoice(): VoiceClient & { events: { phase: DuePhase; call: ScheduledCall }[] } {
+export function recordingVoice(): VoiceClient & { events: { phase: DuePhase; call: ScheduledCall }[]; outbounds: OutboundCallBody[] } {
   const events: { phase: DuePhase; call: ScheduledCall }[] = [];
-  return { events, async scheduledCallDue(c, phase) { events.push({ phase, call: structuredClone(c) }); } };
+  const outbounds: OutboundCallBody[] = [];
+  return {
+    events, outbounds,
+    async scheduledCallDue(c, phase) { events.push({ phase, call: structuredClone(c) }); },
+    async outbound(body) { outbounds.push(structuredClone(body)); return { callId: `call_fake_${outbounds.length}` }; },
+  };
+}
+
+export function fakeDelivery(orders: DeliveryOrderInfo[] = []): DeliveryClient & { orders: DeliveryOrderInfo[] } {
+  return {
+    orders,
+    async getDelivery(id) {
+      const d = orders.find((o) => o.deliveryId === id);
+      if (!d) throw new ServiceError(404, "NOT_FOUND", `delivery ${id} not found`);
+      return structuredClone(d);
+    },
+  };
 }
 
 export function fakeMoney(init: { holds?: Hold[]; orders?: Order[] } = {}): MoneyClient & { holds: Hold[]; orders: Order[]; resolutions: any[] } {

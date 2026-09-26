@@ -3,7 +3,7 @@ import type { Clock } from "./clock.js";
 import type { Store } from "./store/types.js";
 import type { Muse } from "./adapters/muse.js";
 import type { Rooms } from "./adapters/livekit.js";
-import type { MoneyClient, VoiceClient } from "./adapters/services.js";
+import type { DeliveryClient, MoneyClient, VoiceClient } from "./adapters/services.js";
 
 export interface Logger {
   info(obj: any, msg?: string): void;
@@ -19,6 +19,7 @@ export interface Deps {
   rooms: Rooms;
   voice: VoiceClient;
   money: MoneyClient;
+  delivery: DeliveryClient;
   log: Logger;
 }
 

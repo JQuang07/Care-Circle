@@ -5,6 +5,7 @@ import type { CallEnded, Order } from "./contracts-local.js";
 import { AppError, badRequest, type Deps } from "./deps.js";
 import { actOnMessage } from "./domain/actions.js";
 import { getCircle, seedAll } from "./domain/circle.js";
+import { handleDeliveryStatus, validateDeliveryEvent } from "./domain/delivery.js";
 import { handleFraudHold, handleFraudResolved } from "./domain/fraud.js";
 import { runPostCallPipeline } from "./domain/hooks.js";
 import { fireDue, handleScheduledCallEnded, runRhythmJob, tick } from "./domain/jobs.js";
@@ -120,6 +121,13 @@ export async function buildApp(deps: Deps, opts: { logger?: boolean } = {}): Pro
   app.post<{ Body: any }>("/webhooks/fraud-resolved", async (req) => {
     if (!(req.body as any)?.order?.id || !(req.body as any).hold?.id) throw badRequest("expected { order, hold }");
     background("fraud-resolved", () => handleFraudResolved(deps, (req.body as any)));
+    return { ok: true };
+  });
+
+  // D14: delivery status events from services/delivery (:4004).
+  app.post<{ Body: any }>("/webhooks/delivery-status", async (req) => {
+    const ev = validateDeliveryEvent(req.body);
+    background("delivery-status", () => handleDeliveryStatus(deps, ev));
     return { ok: true };
   });
 

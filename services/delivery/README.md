@@ -26,7 +26,7 @@ The model never calls DoorDash tools. Matching and dispatch are deterministic co
 | POST | `/demo/advance/:id` | `{ to: placed\|picked_up\|delivered }` (mock only) |
 | POST | `/demo/reset` | `{ ok: true }` |
 
-**Event:** `POST {money,family}/webhooks/delivery-status` with `{ deliveryId, orderId, status, etaText?, trackingUrl?, failureReason? }`. A 404 on the receiver is ignored until they implement it.
+**Event:** `POST {money,family}/webhooks/delivery-status` with `{ deliveryId, orderId, status, etaText?, trackingUrl?, failureReason? }`, plus `seniorId`, `storeName` and `etaUtc` (additive, so receivers can route without a lookup). A 404 on the receiver is ignored. Family handles it: dry run → Lisa, placed/picked_up → ETA note to the circle, delivered → circle + voice `delivery_arrived` call, failed → verifiers.
 
 ## Connecting the third-party DoorDash MCP server (Windows CMD, demo laptop)
 Tested against **davidgibbons/mcp-doordash** (a fork of `@striderlabs/mcp-doordash`). Our client connected over HTTP and found all 10 tools. This integration is **unofficial**: it drives DoorDash's website with browser automation, which DoorDash's terms may not allow. Use a **dedicated DoorDash account** with a **low-limit card**.

@@ -26,6 +26,7 @@ export interface Config {
   livekitApiSecret?: string;
   voiceUrl: string;
   moneyUrl: string;
+  deliveryUrl: string;
   webUrl: string;
   familyUrl: string;
   /** Scheduler tick interval (ms). 0 disables the background loop. */
@@ -49,6 +50,7 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
     livekitApiSecret: env.LIVEKIT_API_SECRET || undefined,
     voiceUrl: env.VOICE_URL ?? "http://localhost:4001",
     moneyUrl: env.MONEY_URL ?? "http://localhost:4002",
+    deliveryUrl: env.DELIVERY_URL ?? "http://localhost:4004",
     webUrl: env.WEB_URL ?? "http://localhost:3000",
     familyUrl: env.FAMILY_URL ?? "http://localhost:4003",
     tickMs: Number(env.FAMILY_TICK_MS ?? 15000),

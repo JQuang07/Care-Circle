@@ -4,14 +4,14 @@ import { loadConfig } from "../src/config.js";
 import { systemClock } from "../src/clock.js";
 import { createMuse } from "../src/adapters/muse.js";
 import { fakeRooms } from "../src/adapters/livekit.js";
-import { fakeMoney, recordingVoice } from "../src/adapters/services.js";
+import { fakeDelivery, fakeMoney, recordingVoice } from "../src/adapters/services.js";
 import { createMemoryStore } from "../src/store/memory.js";
 import { seedAll } from "../src/domain/circle.js";
 import { runPostCallPipeline } from "../src/domain/hooks.js";
 
 const cfg = loadConfig();
 const log = { info: console.log, warn: console.warn, error: console.error };
-const deps = { cfg, log, store: createMemoryStore(), clock: systemClock(), muse: createMuse(cfg, log), rooms: fakeRooms(), voice: recordingVoice(), money: fakeMoney() };
+const deps = { cfg, log, store: createMemoryStore(), clock: systemClock(), muse: createMuse(cfg, log), rooms: fakeRooms(), voice: recordingVoice(), money: fakeMoney(), delivery: fakeDelivery() };
 await seedAll(deps);
 const t = (s: number) => new Date(Date.now() - 600_000 + s * 1000).toISOString();
 const started = Date.now();

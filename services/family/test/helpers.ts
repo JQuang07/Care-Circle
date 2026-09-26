@@ -6,7 +6,7 @@ import type { Deps } from "../src/deps.js";
 import { silentLogger } from "../src/deps.js";
 import { disabledMuse, type Muse } from "../src/adapters/muse.js";
 import { fakeRooms } from "../src/adapters/livekit.js";
-import { fakeMoney, recordingVoice } from "../src/adapters/services.js";
+import { fakeDelivery, fakeMoney, recordingVoice } from "../src/adapters/services.js";
 import { createMemoryStore } from "../src/store/memory.js";
 import { seedAll } from "../src/domain/circle.js";
 import type { Store } from "../src/store/types.js";
@@ -22,6 +22,7 @@ export interface TestCtx {
   rooms: ReturnType<typeof fakeRooms>;
   voice: ReturnType<typeof recordingVoice>;
   money: ReturnType<typeof fakeMoney>;
+  delivery: ReturnType<typeof fakeDelivery>;
   h: Record<string, string>;
 }
 
@@ -30,16 +31,17 @@ export async function makeCtx(opts: { now?: string; muse?: Muse; money?: ReturnT
   const rooms = fakeRooms();
   const voice = recordingVoice();
   const money = opts.money ?? fakeMoney();
+  const delivery = fakeDelivery();
   const deps: Deps = {
     cfg: loadConfig({ internalSecret: SECRET, mock: false, museEnabled: false, tickMs: 0, webUrl: "http://web.test", requireSecretEverywhere: false }),
     store: opts.store ?? createMemoryStore(),
-    clock, rooms, voice, money,
+    clock, rooms, voice, money, delivery,
     muse: opts.muse ?? disabledMuse(),
     log: silentLogger,
   };
   if (opts.seed !== false) await seedAll(deps);
   const app = await buildApp(deps);
-  return { app, deps, clock, rooms, voice, money, h: { "x-cc-secret": SECRET } };
+  return { app, deps, clock, rooms, voice, money, delivery, h: { "x-cc-secret": SECRET } };
 }
 
 export async function json<T = any>(ctx: TestCtx, method: "GET" | "POST", url: string, payload?: unknown, headers: Record<string, string> = ctx.h) {

@@ -52,7 +52,7 @@ describe("delivery · orders (money-gated)", () => {
     expect(r.statusCode).toBe(200);
     expect(r.json().status).toBe("dry_run_complete");
     expect(r.json().externalOrderId).toBeUndefined();
-    expect(events.at(-1)).toMatchObject({ orderId: "ord_1", status: "dry_run_complete" });
+    expect(events.at(-1)).toMatchObject({ orderId: "ord_1", seniorId: "sen_rose", storeName: q.storeName, status: "dry_run_complete" });
   });
 
   it("refuses when money says the order isn't paid", async () => {

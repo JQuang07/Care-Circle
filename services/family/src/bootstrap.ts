@@ -4,7 +4,7 @@ import { systemClock } from "./clock.js";
 import type { Deps, Logger } from "./deps.js";
 import { createMuse } from "./adapters/muse.js";
 import { createLiveKitRooms, fakeRooms, type Rooms } from "./adapters/livekit.js";
-import { httpMoneyClient, httpVoiceClient } from "./adapters/services.js";
+import { httpDeliveryClient, httpMoneyClient, httpVoiceClient } from "./adapters/services.js";
 import { createMemoryStore } from "./store/memory.js";
 import { createPgStore } from "./store/postgres.js";
 import type { Store } from "./store/types.js";
@@ -42,6 +42,7 @@ export async function createDeps(cfg: Config, log: Logger): Promise<Deps> {
     rooms: createRooms(cfg, log),
     voice: httpVoiceClient(cfg),
     money: httpMoneyClient(cfg),
+    delivery: httpDeliveryClient(cfg),
   };
 }
 
