@@ -25,15 +25,16 @@ Legend: `[x]` done · `[ ]` open · **DoD** = definition-of-done item.
 - [x] Contract-shape tests for every endpoint
 
 ## Phase 2 · Real happy path (H8–30)
-- [ ] Post-call pipeline: strip `privateSpans` **before** any model call
-- [ ] Muse hook extraction (structured output) + heuristic fallback; no health/medication, no complaints about family
-- [ ] Route each hook to the one member who'd care most (relationship facts, e.g. Danny planted the tomatoes)
-- [ ] Warm nudge text that suggests a call; guilt-language filter
-- [ ] Rate limit: ≤1 nudge per member per (local) day
-- [ ] `order-paid` groceries → `add_to_order` to members ("Add something (coming soon)" + "Record a voice note for delivery")
-- [ ] Voice-note URLs stored against the order (`GET /orders/:orderId/voice-notes` for Agent 4)
-- [ ] Messages API complete (inbox, act, reply)
-- [ ] **DoD:** a private span never appears in any hook, nudge, or briefing (test)
+- [x] Post-call pipeline: strip `privateSpans` **before** any model call (+ fail-closed timestamps, "keep this between us" fallback, post-model leak check)
+- [x] Muse hook extraction (structured output) + heuristic fallback; no health/medication, no complaints about family
+- [x] Route each hook to the one member who'd care most (relationship facts, e.g. Danny planted the tomatoes)
+- [x] Warm nudge text that suggests a call; guilt-language filter
+- [x] Rate limit: ≤1 nudge per member per (local) day
+- [x] `order-paid` groceries → `add_to_order` to members ("Add something (coming soon)" + "Record a voice note for delivery"); receipts to funders; idempotent
+- [x] Voice-note URLs stored against the order (`GET /orders/:orderId/voice-notes` for Agent 4)
+- [x] Messages API complete (inbox, act, reply)
+- [x] Family code word (by hash) never written into any hook or outbound message
+- [x] **DoD:** a private span never appears in any hook, nudge, or briefing (test: `test/pipeline.test.ts`)
 
 ## Phase 3 · Fraud + scheduling (H30–50)
 - [ ] `fraud-hold` → `fraud_card` to every verifier; buttons "I'm calling her" / "Cancel it" / "Approve in app (passkey)" → money `/holds/:id/resolve`

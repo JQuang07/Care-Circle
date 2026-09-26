@@ -41,7 +41,8 @@ Rules (strict):
 - NO complaints about any family member. NO money, purchases, scams, or fraud topics.
 - Only use what the transcript says. Never invent details.
 - Route each hook to the ONE family member who would care most, using the relationship notes.
-- nudgeText: 1-2 warm sentences to that member that mention the hook and suggest a call. Never guilt:
+- Never mention a family code word or password, even if she says one.
+- nudgeText: 1-2 warm sentences to that member that call her by her name, mention the hook, and suggest a call. Never guilt:
   never say or imply they haven't called, "it's been a while", "she's lonely", etc. Light and specific.
 Return JSON only.`;
 
@@ -55,7 +56,7 @@ function transcriptText(turns: TranscriptTurn[], seniorName: string, members: Me
 // ---- Deterministic fallback (MOCK / Muse unavailable) ----
 const HOOK_PATTERNS = [
   /came in/i, /bloom/i, /finished/i, /started/i, /worried about/i, /excited/i, /can'?t wait/i, /planted/i,
-  /\bbaked?\b/i, /\bmade\b/i, /\bsaw\b/i, /birthday/i, /recital/i, /\bgame\b/i, /\bheron\b/i, /\bfeeder\b/i,
+  /\bbaked?\b/i, /\bmade\b/i, /\bsaw\b/i, /birthday/i, /recital/i, /\bgame\b/i, /\bfeeder\b/i,
   /crossword/i, /quilt/i, /visit/i, /looking forward/i, /first time/i, /\bpie\b/i,
 ];
 

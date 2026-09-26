@@ -1,4 +1,5 @@
 // Content rules for anything the family reads (hooks, nudges, briefings).
+import { containsCodeWord } from "./codeword.js";
 
 const HEALTH = [
   /\bdoctor'?s?\b/i, /\bdr\.?\s/i, /\bmedic(ation|ine|al|are)\b/i, /\bpills?\b/i, /\bprescription/i, /\brefill/i,
@@ -22,7 +23,7 @@ export function complainsAboutFamily(text: string): boolean { return FAMILY_REFS
 export function mentionsScam(text: string): boolean { return SCAM.test(text); }
 
 export function hookTextAllowed(text: string): boolean {
-  return !!text.trim() && !mentionsHealth(text) && !complainsAboutFamily(text) && !mentionsScam(text);
+  return !!text.trim() && !mentionsHealth(text) && !complainsAboutFamily(text) && !mentionsScam(text) && !containsCodeWord(text);
 }
 
 const GUILT = [

@@ -38,9 +38,11 @@ export function stripPrivate(call: Pick<CallEnded, "transcript" | "privateSpans"
   let secrecyCarry = 0;
   for (const turn of call.transcript ?? []) {
     const ts = Date.parse(turn.ts);
-    let isPrivate = Number.isNaN(ts) ? spans.length > 0 : inAnySpan(ts, spans);
+    const inSpan = Number.isNaN(ts) ? spans.length > 0 : inAnySpan(ts, spans);
+    let isPrivate = inSpan;
     if (turn.speaker === "senior") {
-      if (SECRECY_PHRASES.some((re) => re.test(turn.text))) { isPrivate = true; secrecyCarry = 2; }
+      // Only when the voice agent did NOT cover the request with a span.
+      if (SECRECY_PHRASES.some((re) => re.test(turn.text))) { isPrivate = true; secrecyCarry = inSpan ? 0 : 2; }
       else if (secrecyCarry > 0) { isPrivate = true; secrecyCarry--; }
     }
     (isPrivate ? privateTurns : publicTurns).push(turn);

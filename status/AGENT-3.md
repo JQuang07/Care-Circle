@@ -10,8 +10,10 @@ Run: `cd services/family && npm install && npm run dev` (seeds itself on first b
 - **Phase 1:** every CONTRACTS §4 family endpoint + every §5 webhook responds per contract. **`GET /contact-rhythm/sen_rose` is computed from seeded history**, e.g.:
   `mem_danny: "Sundays ~4pm", lastContactAt = last Sunday, callsLast30d 4` · `mem_lisa: "Midweek, usually Wednesdays ~7pm"` · `mem_mark: "About once a month…"` · `everAskedForMoney: false` for everyone.
 
+- **Phase 2:** post-call pipeline (privateSpans stripped before Muse → hooks → routing → warm nudges, ≤1/member/day), health/complaint/guilt filters, family code word never written into messages (checked by hash), `order-paid` → `add_to_order` ("Add something" = *coming soon* in v1, voice note for delivery) + receipts to funders, voice notes stored per order, messages API. **DoD test: private span never appears in any hook, nudge, or briefing.**
+
 ## In progress
-- Phase 2: post-call pipeline tests (privacy), order-paid, messages API.
+- Phase 3: fraud cards, full scheduling flow, briefings/due events, rhythm job, moments.
 
 ## Blocked on
 - **Postgres on this machine (human):** `localhost:5432` reaches a *native* Windows PostgreSQL service (`postgresql-x64-16`/`-17`), not the `cc-pg` Docker container, so `postgres:dev` is rejected. Until the native services are stopped (or `.env` points elsewhere), family runs on its in-memory store (`MOCK=1`); data resets on restart.

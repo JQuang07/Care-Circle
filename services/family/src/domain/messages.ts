@@ -3,6 +3,7 @@ import type { Deps } from "../deps.js";
 import { AppError, badRequest } from "../deps.js";
 import { newId } from "../ids.js";
 import { findMember } from "./circle.js";
+import { redactCodeWord } from "./codeword.js";
 
 export interface OutgoingMessage {
   toMemberId: string;
@@ -27,7 +28,8 @@ export async function sendMessage(deps: Deps, m: OutgoingMessage): Promise<Messa
     ...(m.fromMemberId ? { fromMemberId: m.fromMemberId } : {}),
     direction: m.direction ?? "out",
     kind: m.kind,
-    body: m.body,
+    // Outbound text never contains the family code word; inbound is stored as the member wrote it.
+    body: (m.direction ?? "out") === "out" ? redactCodeWord(m.body) : m.body,
     ...(m.actions?.length ? { actions: m.actions } : {}),
     ...(m.mediaUrl ? { mediaUrl: m.mediaUrl } : {}),
     createdAt: deps.clock.now().toISOString(),

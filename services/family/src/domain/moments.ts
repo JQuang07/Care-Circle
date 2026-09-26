@@ -10,7 +10,7 @@ import { getCircle } from "./circle.js";
  * `week` may be any date in it (YYYY-MM-DD), an ISO week (2026-W40), or "current".
  */
 export function weekRange(week: string | undefined, tz: string, now: Date): { start: number; end: number } {
-  if (!week || week === "last7") return { start: now.getTime() - 7 * 86_400_000, end: now.getTime() };
+  if (!week || week === "last7") return { start: now.getTime() - 7 * 86_400_000, end: now.getTime() + 1 };
   const anchor = week === "current" ? DateTime.fromJSDate(now).setZone(tz)
     : /^\d{4}-W\d{2}$/.test(week) ? DateTime.fromISO(`${week}-1`, { zone: tz }) : DateTime.fromISO(week, { zone: tz });
   if (!anchor.isValid) throw badRequest(`invalid week "${week}" (use YYYY-MM-DD, YYYY-Www, current or last7)`);

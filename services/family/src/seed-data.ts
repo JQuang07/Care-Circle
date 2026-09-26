@@ -37,7 +37,7 @@ export const RELATIONSHIP_FACTS: RelationshipFact[] = [
     fact: "Danny helped Rose plant the tomatoes this spring and they talk about the garden and baseball." },
   { memberId: "mem_lisa", keywords: ["buddy", "dog", "vet", "mia", "recipe", "pie", "baking", "church", "choir", "quilt"],
     fact: "Lisa takes Buddy (Rose's dog) to his vet visits; Mia adores Buddy. Lisa and Rose swap recipes and church news." },
-  { memberId: "mem_mark", keywords: ["bird", "birds", "heron", "feeder", "crossword", "puzzle", "photo", "photos", "dad", "london", "tea"],
+  { memberId: "mem_mark", keywords: ["bird", "birds", "feeder", "cardinal", "crossword", "puzzle", "photo", "photos", "dad", "london", "tea"],
     fact: "Mark and Rose share bird watching and the Sunday crossword; he loves hearing stories about Dad and old photos." },
 ];
 
