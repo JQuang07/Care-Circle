@@ -4,6 +4,8 @@ Updated: 2026-09-26. Branch: `jayden`, synced with integration-v2 on main.
 
 ## Integration follow-up
 
+- D7 complete: birthday gifts for Mia bind to verified parent mem_lisa; statedReason preserves her name. Worded demo amount ($25) and natural gift confirmation covered. 46/46 tests and typecheck pass.
+
 - D9 voice complete: exact returned totals, store/provider wording, one missing-item question, re-quote on skip, dry-run wording, quote-change invalidation. 44/44 tests and typecheck pass.
 - Agent 2: current MoneyService.draft echoes the submitted request; delivery quote/pricing/fulfilment is not implemented on this base. Voice presentation is tested with injected authoritative quotes; real pricing/delivery integration remains pending Agent 2.
 

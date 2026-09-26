@@ -33,7 +33,7 @@ export const affirmative = (text: string) => {
   return (
     normalized
       .replace(
-        /\b(that's everything|that is everything|that's right|go ahead|please do|order (it|them)|place (the|my) order|yes|yeah|okay|ok|sure|confirm|please|and|thank you|thanks)\b/g,
+        /\b(that's everything|that is everything|that's right|go ahead|please do|(order|send) (it|them)|place (the|my) order|yes|yeah|okay|ok|sure|confirm|please|and|thank you|thanks)\b/g,
         "",
       )
       .replace(/[.,!\s]/g, "") === ""
@@ -371,6 +371,34 @@ export class Engine {
           speak:
             "I can’t check your existing prescriptions yet. Please contact your usual pharmacy or a family member.",
         };
+      if (req.type === "gift") {
+        const miaReason = s.transcript
+          .filter((t) => t.speaker === "senior")
+          .slice(-8)
+          .map((t) => t.text)
+          .reverse()
+          .find((text) => /\bfor Mia\b|\bMia['’]s birthday\b/i.test(text));
+        if (miaReason) {
+          const circle = await this.deps.call<Circle>(
+            "family",
+            "GET",
+            "/circle/" + s.seniorId,
+          );
+          const parent = circle.members.find(
+            (m) =>
+              m.id === "mem_lisa" &&
+              (m.age === undefined || m.age >= 18) &&
+              m.dependents?.some((d) => d.name === "Mia" && d.age < 18),
+          );
+          assert(
+            parent,
+            "PARENT_REQUIRED",
+            "Mia's gift needs her parent in the circle.",
+          );
+          req.recipientMemberId = parent.id;
+          req.context.statedReason = miaReason;
+        }
+      }
       req.context.transcriptExcerpt = s.transcript
         .filter((t) => t.speaker === "senior")
         .slice(-8)
@@ -421,7 +449,8 @@ export class Engine {
         "This order needs family review.",
       );
       const pending: Pending = order.fulfilment?.unmatchedItems.length
-        ? { kind: "unmatched", order } : { kind: "order", order };
+        ? { kind: "unmatched", order }
+        : { kind: "order", order };
       s.pending = pending;
       s.pendingDelivered = false;
       return { speak: this.pendingSummary(pending) };

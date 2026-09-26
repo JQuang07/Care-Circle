@@ -691,3 +691,31 @@ test("D9 a changed delivery quote invalidates confirmation", async () => {
   };
   await assert.rejects(f.engine.turn(f.s, "yes"), /details changed/);
 });
+
+test("D7 Mia birthday gift goes through Lisa and confirms naturally", async () => {
+  const f = await fixture();
+  await f.engine.turn(f.s, "Mia's birthday is coming up. She's turning ten!");
+  await f.engine.turn(
+    f.s,
+    "I'd like to send a twenty-five dollar Sweet Crumb Bakery gift card to Lisa for Mia's birthday.",
+  );
+  const order = f.deps.orders[0]!;
+  assert.equal(order.request.recipientMemberId, "mem_lisa");
+  assert.match(order.request.context.statedReason!, /Mia/);
+  assert.equal(order.request.amountCents, 2500);
+  assert.equal(order.request.merchantId, "mer_crumb");
+  await f.engine.delivered(f.s);
+  await f.engine.turn(f.s, "Yes, that's right. Please send it.");
+  assert.equal(order.status, "paid");
+});
+test("D7 gift does not invent or call a minor member", async () => {
+  const f = await fixture();
+  f.deps.circle.members = f.deps.circle.members.filter(
+    (m) => m.id !== "mem_lisa",
+  );
+  await assert.rejects(
+    f.engine.turn(f.s, "A $25 gift card for Mia's birthday"),
+    /parent/,
+  );
+  assert.equal(f.deps.orders.length, 0);
+});
