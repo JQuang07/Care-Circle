@@ -7,6 +7,7 @@ const targets = [
   { name: "voice", url: process.env.VOICE_URL ?? "http://localhost:4001", owner: "Agent 1" },
   { name: "money", url: process.env.MONEY_URL ?? "http://localhost:4002", owner: "Agent 2" },
   { name: "family", url: process.env.FAMILY_URL ?? "http://localhost:4003", owner: "Agent 3" },
+  { name: "delivery", url: process.env.DELIVERY_URL ?? "http://localhost:4004", owner: "Agent 3" },
   { name: "web", url: process.env.WEB_URL ?? "http://localhost:3000", owner: "Agent 4" },
 ];
 

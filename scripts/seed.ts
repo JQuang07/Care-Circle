@@ -1,6 +1,6 @@
 /**
  * pnpm seed — orchestrates each service's own seed script, in contract order:
- *   family → money → voice
+ *   family → money → delivery → voice
  * Each service seeds ONLY its own schema (CONTRACTS.md §1–2). This script never
  * touches service tables; it only makes sure the four schemas exist first.
  */
@@ -14,6 +14,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const ORDER = [
   { pkg: "@care-circle/family", owner: "Agent 3" },
   { pkg: "@care-circle/money", owner: "Agent 2" },
+  { pkg: "@care-circle/delivery", owner: "Agent 3" },
   { pkg: "@care-circle/voice", owner: "Agent 1" },
 ] as const;
 
@@ -52,7 +53,7 @@ async function main() {
       process.exit(res.status ?? 1);
     }
   }
-  console.log("\n✓ seed complete: family → money → voice");
+  console.log("\n✓ seed complete: family → money → delivery → voice");
 }
 
 main().catch((err) => {
