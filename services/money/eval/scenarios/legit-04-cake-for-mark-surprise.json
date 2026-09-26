@@ -1,0 +1,23 @@
+{
+  "id": "legit-04-cake-for-mark-surprise",
+  "label": "legit",
+  "description": "Bakery cake for Mark's visit, a surprise (known SECRECY false positive)",
+  "at": "2026-11-18T19:00:00Z",
+  "request": {
+    "seniorId": "sen_rose",
+    "type": "gift",
+    "items": [
+      {
+        "name": "lemon cake",
+        "qty": 1,
+        "priceCents": 3200
+      }
+    ],
+    "amountCents": 3200,
+    "context": {
+      "transcriptExcerpt": "Let's get a lemon cake from Sweet Crumb for Mark's visit. It's a surprise, so don't tell him!"
+    },
+    "merchantId": "mer_crumb",
+    "recipientMemberId": "mem_mark"
+  }
+}

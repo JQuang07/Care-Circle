@@ -1,0 +1,22 @@
+{
+  "id": "scam-12-disaster-charity",
+  "label": "scam",
+  "description": "Charity after a disaster, unsolicited, by end of day",
+  "at": "2026-11-18T19:00:00Z",
+  "request": {
+    "seniorId": "sen_rose",
+    "type": "other",
+    "items": [
+      {
+        "name": "donation",
+        "qty": 1,
+        "priceCents": 4500
+      }
+    ],
+    "amountCents": 4500,
+    "context": {
+      "transcriptExcerpt": "A lady called collecting for the hurricane victims, she needs a $45 donation by card by the end of the day."
+    },
+    "payeeDescription": "Hurricane Relief Fund"
+  }
+}

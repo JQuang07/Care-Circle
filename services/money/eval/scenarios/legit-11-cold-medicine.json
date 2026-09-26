@@ -1,0 +1,27 @@
+{
+  "id": "legit-11-cold-medicine",
+  "label": "legit",
+  "description": "Cold medicine and tissues from CornerRx",
+  "at": "2026-11-18T19:00:00Z",
+  "request": {
+    "seniorId": "sen_rose",
+    "type": "pharmacy_refill",
+    "items": [
+      {
+        "name": "cough drops",
+        "qty": 1,
+        "priceCents": 900
+      },
+      {
+        "name": "tissues",
+        "qty": 2,
+        "priceCents": 500
+      }
+    ],
+    "amountCents": 1900,
+    "context": {
+      "transcriptExcerpt": "I've got a little cold, could you get me some cough drops and tissues from CornerRx?"
+    },
+    "merchantId": "mer_cornerrx"
+  }
+}

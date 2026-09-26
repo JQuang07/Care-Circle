@@ -1,0 +1,27 @@
+{
+  "name": "@care-circle/e2e",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Cross-service E2E (Agent 4). Also the single source of seed IDs and demo scripts, so the /demo buttons run exactly what the tests prove.",
+  "exports": {
+    "./ids": "./src/ids.ts",
+    "./scripts": "./src/scripts.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json",
+    "selftest": "tsx selftest/run.ts"
+  },
+  "dependencies": {
+    "@care-circle/contracts": "workspace:*",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.0",
+    "typescript": "5.9.3",
+    "vitest": "^3.2.4",
+    "tsx": "^4.20.0",
+    "fastify": "^5.6.0"
+  }
+}

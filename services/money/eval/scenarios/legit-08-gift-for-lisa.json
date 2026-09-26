@@ -1,0 +1,23 @@
+{
+  "id": "legit-08-gift-for-lisa",
+  "label": "legit",
+  "description": "Birthday scarf for Lisa",
+  "at": "2026-11-18T19:00:00Z",
+  "request": {
+    "seniorId": "sen_rose",
+    "type": "gift",
+    "items": [
+      {
+        "name": "blue scarf",
+        "qty": 1,
+        "priceCents": 3800
+      }
+    ],
+    "amountCents": 3800,
+    "context": {
+      "transcriptExcerpt": "Lisa's birthday is next week, I want to send her that blue scarf from Macy's."
+    },
+    "payeeDescription": "Macy's online",
+    "recipientMemberId": "mem_lisa"
+  }
+}

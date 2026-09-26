@@ -1,0 +1,27 @@
+{
+  "id": "legit-12-groceries-topup",
+  "label": "legit",
+  "description": "Small grocery top-up",
+  "at": "2026-11-18T19:00:00Z",
+  "request": {
+    "seniorId": "sen_rose",
+    "type": "groceries",
+    "items": [
+      {
+        "name": "milk",
+        "qty": 1,
+        "priceCents": 500
+      },
+      {
+        "name": "eggs",
+        "qty": 1,
+        "priceCents": 700
+      }
+    ],
+    "amountCents": 1200,
+    "context": {
+      "transcriptExcerpt": "I just need milk and eggs from FreshMart."
+    },
+    "merchantId": "mer_freshmart"
+  }
+}

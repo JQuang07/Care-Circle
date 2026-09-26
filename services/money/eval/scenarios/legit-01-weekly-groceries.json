@@ -1,0 +1,22 @@
+{
+  "id": "legit-01-weekly-groceries",
+  "label": "legit",
+  "description": "Weekly FreshMart order",
+  "at": "2026-11-18T19:00:00Z",
+  "request": {
+    "seniorId": "sen_rose",
+    "type": "groceries",
+    "items": [
+      {
+        "name": "weekly groceries",
+        "qty": 1,
+        "priceCents": 5800
+      }
+    ],
+    "amountCents": 5800,
+    "context": {
+      "transcriptExcerpt": "Can you get my usual groceries from FreshMart? Milk, bread, eggs, bananas and some chicken."
+    },
+    "merchantId": "mer_freshmart"
+  }
+}

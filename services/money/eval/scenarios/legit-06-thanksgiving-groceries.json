@@ -1,0 +1,27 @@
+{
+  "id": "legit-06-thanksgiving-groceries",
+  "label": "legit",
+  "description": "Bigger-than-usual Thanksgiving grocery order",
+  "at": "2026-11-18T19:00:00Z",
+  "request": {
+    "seniorId": "sen_rose",
+    "type": "groceries",
+    "items": [
+      {
+        "name": "turkey",
+        "qty": 1,
+        "priceCents": 4200
+      },
+      {
+        "name": "Thanksgiving sides and baking",
+        "qty": 1,
+        "priceCents": 10000
+      }
+    ],
+    "amountCents": 14200,
+    "context": {
+      "transcriptExcerpt": "Lisa and the kids are coming for Thanksgiving, so I need a turkey and all the fixings from FreshMart."
+    },
+    "merchantId": "mer_freshmart"
+  }
+}

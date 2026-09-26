@@ -1,0 +1,22 @@
+{
+  "id": "legit-03-ride-to-doctor",
+  "label": "legit",
+  "description": "Ride to the doctor",
+  "at": "2026-11-18T19:00:00Z",
+  "request": {
+    "seniorId": "sen_rose",
+    "type": "ride",
+    "items": [
+      {
+        "name": "ride to Dr. Patel",
+        "qty": 1,
+        "priceCents": 1800
+      }
+    ],
+    "amountCents": 1800,
+    "context": {
+      "transcriptExcerpt": "I need a ride to Dr. Patel's office on Thursday at ten."
+    },
+    "merchantId": "mer_ridemock"
+  }
+}

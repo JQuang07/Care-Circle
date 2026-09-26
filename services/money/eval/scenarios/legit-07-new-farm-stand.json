@@ -1,0 +1,22 @@
+{
+  "id": "legit-07-new-farm-stand",
+  "label": "legit",
+  "description": "New merchant, normal amount: the farm stand",
+  "at": "2026-11-18T19:00:00Z",
+  "request": {
+    "seniorId": "sen_rose",
+    "type": "groceries",
+    "items": [
+      {
+        "name": "apples and squash",
+        "qty": 1,
+        "priceCents": 2200
+      }
+    ],
+    "amountCents": 2200,
+    "context": {
+      "transcriptExcerpt": "There's a new farm stand on Route 9, I'd like some apples and squash from there."
+    },
+    "payeeDescription": "the new farm stand on Route 9"
+  }
+}

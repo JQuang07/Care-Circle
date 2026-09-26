@@ -1,0 +1,22 @@
+{
+  "id": "scam-07-prize",
+  "label": "scam",
+  "description": "Prize/lottery: pay a fee to release winnings",
+  "at": "2026-11-18T19:00:00Z",
+  "request": {
+    "seniorId": "sen_rose",
+    "type": "other",
+    "items": [
+      {
+        "name": "processing fee",
+        "qty": 1,
+        "priceCents": 4900
+      }
+    ],
+    "amountCents": 4900,
+    "context": {
+      "transcriptExcerpt": "Somebody called and said I won the national sweepstakes! I just need to pay a $49 processing fee to release the prize."
+    },
+    "payeeDescription": "Prize Claims Center"
+  }
+}

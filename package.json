@@ -1,0 +1,40 @@
+{
+  "name": "care-circle",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.34.5",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "dotenv -e .env -- concurrently -k -n voice,money,family,delivery,web -c magenta,yellow,cyan,blue,green \"pnpm --filter @care-circle/voice dev\" \"pnpm --filter @care-circle/money dev\" \"pnpm --filter @care-circle/family dev\" \"pnpm --filter @care-circle/delivery dev\" \"pnpm --filter @care-circle/web dev\"",
+    "dev:services": "dotenv -e .env -- concurrently -k -n voice,money,family,delivery -c magenta,yellow,cyan,blue \"pnpm --filter @care-circle/voice dev\" \"pnpm --filter @care-circle/money dev\" \"pnpm --filter @care-circle/family dev\" \"pnpm --filter @care-circle/delivery dev\"",
+    "seed": "dotenv -e .env -- tsx scripts/seed.ts",
+    "health": "dotenv -e .env -- tsx scripts/health.ts",
+    "db:up": "docker compose up -d --wait",
+    "db:reset": "docker compose down -v && docker compose up -d --wait",
+    "e2e": "dotenv -e .env -- pnpm --filter @care-circle/e2e test",
+    "e2e:10": "dotenv -e .env -- tsx scripts/e2e-repeat.ts 10",
+    "typecheck": "pnpm -r --parallel typecheck",
+    "build:web": "pnpm --filter @care-circle/web build",
+    "e2e:selftest": "pnpm --filter @care-circle/e2e selftest",
+    "dd:check": "dotenv -e .env -- pnpm --filter @care-circle/delivery dd:check"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.0",
+    "@types/pg": "^8.15.0",
+    "concurrently": "^9.2.0",
+    "dotenv-cli": "^10.0.0",
+    "pg": "^8.16.0",
+    "tsx": "^4.20.0",
+    "typescript": "5.9.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "sharp",
+      "@tailwindcss/oxide",
+      "unrs-resolver"
+    ]
+  }
+}
