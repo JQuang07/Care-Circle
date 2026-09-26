@@ -12,12 +12,33 @@ import {
   type Pending,
 } from "./types.js";
 import type { Dependencies } from "./dependencies.js";
-import type { Reasoner } from "./reasoner.js";
+import { MockReasoner, type Reasoner } from "./reasoner.js";
 import { Store } from "./store.js";
-export const affirmative = (text: string) =>
-  /^(yes|yes please|yes go ahead|go ahead|please do|that’s right|that's right|confirm|okay|ok)[.!\s]*$/i.test(
-    text.trim(),
+// Only confirmation language is accepted. Unknown trailing words fail closed,
+// so a leading yes cannot authorize an item, quantity, timing or recipient change.
+export const affirmative = (text: string) => {
+  const normalized = text.trim().toLowerCase().replace(/[’]/g, "'");
+  if (
+    /\b(no|not|wait|don't|hold on|actually|never|stop|cancel)\b/.test(
+      normalized,
+    )
+  )
+    return false;
+  if (
+    !/^(yes|yeah|go ahead|please do|that's right|okay|ok|sure|confirm)\b/.test(
+      normalized,
+    )
+  )
+    return false;
+  return (
+    normalized
+      .replace(
+        /\b(that's everything|that is everything|that's right|go ahead|please do|order (it|them)|place (the|my) order|yes|yeah|okay|ok|sure|confirm|please|and|thank you|thanks)\b/g,
+        "",
+      )
+      .replace(/[.,!\s]/g, "") === ""
   );
+};
 export const negative = (text: string) =>
   /^(no|no thanks|cancel|never mind|nevermind|stop)[.!\s]*$/i.test(text.trim());
 export class Engine {
@@ -237,6 +258,22 @@ export class Engine {
     name: string,
     args: Record<string, unknown>,
   ): Promise<unknown> {
+    if (name === "revise_mock_order" && this.reasoner instanceof MockReasoner) {
+      const orders = await this.deps.call<Order[]>(
+        "money",
+        "GET",
+        `/orders?seniorId=${s.seniorId}`,
+      );
+      const previous = orders
+        .filter((o) => o.seniorId === s.seniorId && o.status === "approved")
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+      assert(previous, "NO_DRAFT", "Please tell me the complete list again.");
+      const item = z.string().min(1).max(200).parse(args.item);
+      return this.tool(s, "place_order", {
+        ...previous.request,
+        items: [...previous.request.items, { name: item, qty: 1 }],
+      });
+    }
     if (name === "mark_private") {
       s.privateStart ||=
         s.transcript.filter((t) => t.speaker === "senior").at(-1)?.ts ||

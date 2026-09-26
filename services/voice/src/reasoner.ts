@@ -169,6 +169,17 @@ export class MockReasoner implements Reasoner {
       };
     const text =
       s.transcript.filter((t) => t.speaker === "senior").at(-1)?.text || "";
+    // Mock revisions still draft through money and need a fresh read-back.
+    const addition = /\badd\s+(.+?)[.!]*$/i.exec(text);
+    if (addition) {
+      const previous = [...s.transcript]
+        .reverse()
+        .find((t) => t.speaker === "agent" && /Should I go ahead/.test(t.text));
+      if (previous && !results.length)
+        return {
+          actions: [{ name: "revise_mock_order", args: { item: addition[1] } }],
+        };
+    }
     if (/see.*(kids|family)|family call|visit/i.test(text))
       return {
         actions: [

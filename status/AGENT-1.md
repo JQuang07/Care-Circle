@@ -1,6 +1,13 @@
 # Agent 1 — Jayden / voice
 
-Updated: 2026-09-26. Branch: `jayden`. No push or merge performed.
+Updated: 2026-09-26. Branch: `jayden`, synced with integration-v2 on main.
+
+## Integration follow-up
+
+- D16 implemented: natural affirmative sentences confirm only after completed playback; negation, hesitation, and extra details fail closed. Mock add-item requests draft again and require fresh confirmation.
+- Validation: 38/38 voice tests and voice typecheck pass.
+- Local setup: workspace dependencies installed using pinned pnpm 10.34.5; private role file and .env created. Team secret pending from team. Docker installation requires local administrator authentication.
+- Real-service E2E and real phone tests remain pending.
 
 ## Done
 

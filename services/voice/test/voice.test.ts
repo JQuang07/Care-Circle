@@ -4,7 +4,7 @@ import { config } from "../src/config.js";
 import { createApp } from "../src/app.js";
 import { MockDependencies, HttpDependencies } from "../src/dependencies.js";
 import { MockReasoner, type Reasoner } from "../src/reasoner.js";
-import { Engine } from "../src/engine.js";
+import { Engine, affirmative } from "../src/engine.js";
 import { Store } from "../src/store.js";
 import type { OrderRequest } from "../src/types.js";
 const secret = "test-secret-at-least-24-characters";
@@ -430,4 +430,53 @@ test("authenticated debug call inspection is available for the integrator", asyn
   });
   assert.equal(response.statusCode, 200);
   assert.equal(response.json().callId, s.callId);
+});
+
+test("D16 accepts natural confirmations but rejects hesitation and changes", () => {
+  for (const text of [
+    "Yes, that's everything. Please go ahead and order it.",
+    "yeah",
+    "sure",
+    "That's right.",
+    "Okay, please do.",
+  ])
+    assert.equal(affirmative(text), true, text);
+  for (const text of [
+    "Yes, but add eggs",
+    "Yes, no bread",
+    "Sure, wait",
+    "Yes, don't order",
+    "Okay, hold on",
+    "Yes, actually",
+    "Yes, two cartons",
+    "Yes, tomorrow",
+    "Sure, for Danny",
+    "Yes, not yet",
+  ])
+    assert.equal(affirmative(text), false, text);
+});
+test("D16 full sentence confirms only after complete playback", async () => {
+  const f = await fixture();
+  await draft(f);
+  const yes = "Yes, that's everything. Please go ahead and order it.";
+  await f.engine.turn(f.s, yes);
+  assert.equal(f.deps.orders[0]?.status, "approved");
+  await f.engine.delivered(f.s);
+  await f.engine.turn(f.s, yes);
+  assert.equal(f.deps.orders[0]?.status, "paid");
+});
+test("D16 yes but add eggs re-quotes and requires fresh playback", async () => {
+  const f = await fixture();
+  await draft(f);
+  await f.engine.delivered(f.s);
+  await f.engine.turn(f.s, "Yes, but add eggs");
+  assert.equal(f.deps.orders.length, 2);
+  assert.ok(f.deps.orders[1]?.request.items.some((i) => i.name === "eggs"));
+  assert.ok(f.deps.orders.every((o) => o.status === "approved"));
+  await f.engine.turn(f.s, "yes");
+  assert.equal(f.deps.orders[1]?.status, "approved");
+  await f.engine.delivered(f.s);
+  await f.engine.turn(f.s, "yes");
+  assert.equal(f.deps.orders[1]?.status, "paid");
+  assert.equal(f.deps.orders[0]?.status, "approved");
 });
