@@ -8,7 +8,10 @@
 - [x] Gift-card grocery-rail fraud regression.
 - [x] D6/D7/D8: history boolean, Mia through Lisa, cancel/release safeguards.
 - [x] D1: authenticated money reset and seed.
-- [ ] Shared contract imports when compatible with main.
-- [ ] Tests, fraud eval, HTTP integration, health and E2E; record blockers.
+- [ ] Shared contract imports: waiting for Agent 4's D6/D14 package on main (main remains 63320fe).
+- [x] Money tests (132 pass), workspace typecheck, fraud eval (12/12, 1 false high).
+- [x] Actual HTTP grocery/payment/delivery/family/scam/Mia integration and all five health checks (memory stores, mock providers).
+- [ ] PostgreSQL runtime validation: Docker unavailable; optional integration test skipped.
+- [ ] Voice E2E 1/3/4 green: blocked by main's Agent 1 parser, confirmation, and verification-endpoint gaps; details in status/AGENT-2.md.
 
-After each task: money tests, update status, commit, push arpit, fetch main and check HOLD.md.
+After each implementation task: money tests, update status, commit, push arpit, fetch main and check HOLD.md.

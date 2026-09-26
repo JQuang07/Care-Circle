@@ -10,7 +10,7 @@ const PATHS: Record<EventName, string> = {
 export type EventPayload = Order | { order: Order; hold: Hold };
 export interface Events { emit(name: EventName, payload: EventPayload): void }
 
-/** Collects events in memory (tests, eval, MOCK). */
+/** Collects events in memory (tests, eval, MOCK_DEPENDENCIES). */
 export class RecordingEvents implements Events {
   sent: { name: EventName; path: string; payload: EventPayload }[] = [];
   constructor(private log?: (m: string) => void) {}

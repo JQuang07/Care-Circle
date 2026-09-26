@@ -1,7 +1,7 @@
 import type { FraudAssessment, OrderRequest } from './contracts';
 import { detectRails } from './fraud/layer1';
 
-// Canned assessments for MOCK=1 (CONTRACTS.md §0). Shapes match the real engine.
+// Legacy canned fixtures. Runtime MOCK=1 uses the real fraud engine per D15.
 export const CANNED: Record<FraudAssessment['risk'], FraudAssessment> = {
   low: {
     risk: 'low', score: 8, hardStop: false, signals: [

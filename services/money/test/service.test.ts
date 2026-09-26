@@ -99,7 +99,7 @@ describe('holds', () => {
 
 it('Mia gift routed through Lisa stays low-risk and can be paid', async () => {
   const { service } = await setup();
-  const order = await service.draft(MIA);
+  const order = await service.draft({ ...MIA, merchantId: 'mer_crumb', items: [{ name: 'Sweet Crumb Bakery gift card', qty: 1, priceCents: 2500 }] });
   expect(order.fraud.risk).toBe('low');
   expect(order.fraud.signals.map(s => s.code)).not.toContain('GIFT_CARD_NONMEMBER');
   expect((await service.confirm(order.id)).status).toBe('paid');

@@ -1,5 +1,6 @@
-// Copied from CONTRACTS.md §2–§3. When Agent 4 publishes packages/contracts,
-// replace this file's body with: export * from '@care-circle/contracts';
+// CONTRACTS.md §2–§3 plus D6/D14 addendum. main's shared package still lacks
+// these additions. Replace shared shapes with @care-circle/contracts imports
+// when the updated package lands; keep Circle/Credential internal types local.
 
 export type OrderType = 'groceries' | 'ride' | 'gift' | 'pharmacy_refill' | 'other';
 
