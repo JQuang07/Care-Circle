@@ -1,7 +1,7 @@
 # Agent 1 tasks — Jayden
 
 - [x] D16: Natural confirmations; changes re-quote; playback safeguards; tests.
-- [ ] D1/D3: Authenticated reset, calls list, verification simulation.
+- [x] D1/D3: Authenticated reset, calls list, verification simulation.
 - [ ] D4: Body-first scheduled-call phase with header fallback.
 - [ ] D9: Authoritative prices, store, unmatched items, dry-run language.
 - [ ] D7: Mia gifts use Lisa with Mia in statedReason.

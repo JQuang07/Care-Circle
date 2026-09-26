@@ -4,6 +4,9 @@ Updated: 2026-09-26. Branch: `jayden`, synced with integration-v2 on main.
 
 ## Integration follow-up
 
+- D1/D3 complete: authenticated reset, filtered call summaries, and role-bound verification simulation. 40/40 tests and typecheck pass.
+- Agent 4: web/e2e still send string[] to simulate-verification; D3 requires {speaker, text}[]. Add a member confirmation after cancel to exercise the real two-step verifier flow.
+
 - D16 implemented: natural affirmative sentences confirm only after completed playback; negation, hesitation, and extra details fail closed. Mock add-item requests draft again and require fresh confirmation.
 - Validation: 38/38 voice tests and voice typecheck pass.
 - Local setup: workspace dependencies installed using pinned pnpm 10.34.5; private role file and .env created. Team secret pending from team. Docker installation requires local administrator authentication.

@@ -480,3 +480,89 @@ test("D16 yes but add eggs re-quotes and requires fresh playback", async () => {
   assert.equal(f.deps.orders[1]?.status, "paid");
   assert.equal(f.deps.orders[0]?.status, "approved");
 });
+
+test("D1/D3 demo routes require auth; calls are filtered; reset clears voice state", async (t) => {
+  const { app, engine, store } = await createApp(settings());
+  t.after(() => app.close());
+  for (const [method, url] of [
+    ["GET", "/demo/calls?seniorId=sen_rose"],
+    ["POST", "/demo/reset"],
+    ["POST", "/demo/simulate-verification"],
+  ] as const)
+    assert.equal((await app.inject({ method, url })).statusCode, 401);
+  const s = await engine.create("sen_rose");
+  await engine.create("sen_other");
+  await store.enqueue("due:sch_demo", {});
+  await store.claim("demo", s.callId);
+  const calls = (
+    await app.inject({
+      url: "/demo/calls?seniorId=sen_rose",
+      headers: { "x-cc-secret": secret },
+    })
+  ).json();
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].callId, s.callId);
+  assert.equal(calls[0].transcript, undefined);
+  const reset = await app.inject({
+    method: "POST",
+    url: "/demo/reset",
+    headers: { "x-cc-secret": secret },
+  });
+  assert.deepEqual(reset.json(), { ok: true });
+  assert.equal(store.sessions.size + store.jobs.size + store.claims.size, 0);
+});
+test("D3 simulation binds member, uses verbal resolution and rejects high-risk release", async (t) => {
+  const deps = new MockDependencies();
+  const { app, engine } = await createApp(settings(), { deps });
+  t.after(() => app.close());
+  const s = await engine.create("sen_rose");
+  await engine.turn(s, "$500 gift cards, grandson in trouble");
+  const payload = {
+    seniorId: "sen_rose",
+    holdId: deps.holds[0]!.id,
+    memberId: "mem_danny",
+    script: [
+      { speaker: "member", text: "cancel" },
+      { speaker: "senior", text: "yes" },
+    ],
+  };
+  const post = (body: unknown) =>
+    app.inject({
+      method: "POST",
+      url: "/demo/simulate-verification",
+      headers: { "x-cc-secret": secret },
+      payload: body as object,
+    });
+  assert.equal(
+    (await post({ ...payload, memberId: "mem_mia" })).statusCode,
+    409,
+  );
+  assert.equal((await post(payload)).statusCode, 200);
+  assert.equal(deps.holds[0]!.status, "open");
+  assert.equal(
+    (
+      await post({
+        ...payload,
+        script: [
+          { speaker: "member", text: "release" },
+          { speaker: "member", text: "yes" },
+        ],
+      })
+    ).statusCode,
+    409,
+  );
+  const response = await post({
+    ...payload,
+    script: [
+      { speaker: "member", text: "cancel" },
+      { speaker: "member", text: "yes" },
+    ],
+  });
+  assert.equal(response.statusCode, 200, response.body);
+  assert.equal(deps.holds[0]!.status, "cancelled");
+  assert.deepEqual(deps.resolutions[0], {
+    decision: "cancel",
+    byMemberId: "mem_danny",
+    method: "verbal_on_verification_call",
+  });
+});
