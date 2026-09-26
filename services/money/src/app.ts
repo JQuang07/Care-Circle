@@ -44,6 +44,7 @@ export function buildApp(o: AppOptions): FastifyInstance {
   app.post<{ Params: { id: string } }>('/orders/:id/confirm', async (req) => o.service.confirm(req.params.id));
   app.post<{ Params: { id: string } }>('/holds/:id/resolve', async (req) => o.service.resolveHold(req.params.id, req.body));
   app.get('/holds', async (req) => o.service.listHolds(seniorQuery(req.query)));
+  app.get<{ Params: { id: string } }>('/orders/:id', async (req) => o.service.getOrder(req.params.id));
   app.get('/orders', async (req) => o.service.listOrders(seniorQuery(req.query)));
   app.get<{ Params: { seniorId: string } }>('/credentials/:seniorId', async (req) => o.service.credentials(req.params.seniorId));
 

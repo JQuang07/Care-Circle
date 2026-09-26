@@ -68,7 +68,16 @@ describe('HTTP API', () => {
     expect((await a.inject({ method: 'GET', url: '/eval/results', headers: H })).statusCode).toBe(404);
   });
 
-  it('unknown order → 404', async () => {
+  it('looks up a draft and returns the contract 404 for missing orders', async () => {
+    const a = await app();
+    const d = (await a.inject({ method: 'POST', url: '/orders/draft', headers: H, payload: GROCERIES })).json();
+    expect((await a.inject({ method: 'GET', url: `/orders/${d.id}`, headers: H })).json()).toEqual(d);
+    const missing = await a.inject({ method: 'GET', url: '/orders/missing', headers: H });
+    expect(missing.statusCode).toBe(404);
+    expect(missing.json()).toEqual({ error: { code: 'ORDER_NOT_FOUND', message: expect.any(String) } });
+  });
+
+  it('unknown order → 404' , async () => {
     const a = await app();
     const r = await a.inject({ method: 'POST', url: '/orders/ord_nope/confirm', headers: H });
     expect(r.statusCode).toBe(404);

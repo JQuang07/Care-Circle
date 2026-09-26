@@ -152,6 +152,12 @@ export class MoneyService {
     return { ...cred, spentThisMonthCents: spent, remainingThisMonthCents: Math.max(0, cred.monthlyCapCents - spent) };
   }
 
+  async getOrder(orderId: string): Promise<Order> {
+    const order = await this.d.store.getOrder(orderId);
+    if (!order) throw new ApiError(404, 'ORDER_NOT_FOUND', `No order ${orderId}`);
+    return order;
+  }
+
   listOrders(seniorId: string) { return this.d.store.listOrders(seniorId); }
   listHolds(seniorId: string) { return this.d.store.listHolds(seniorId); }
 }

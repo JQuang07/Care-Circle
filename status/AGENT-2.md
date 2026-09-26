@@ -1,3 +1,5 @@
+D9 order lookup implemented, including authenticated access and contract-shaped 404; money tests pass.
+
 # Current Agent 2 integration — arpit
 
 - Mistaken Agent 4 integration was reverted in 0021c99. Common main setup reapplied without Agent 4/Jayden feature branches.
