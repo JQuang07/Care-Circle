@@ -49,8 +49,7 @@ export function relationshipSignals(req: OrderRequest, circle: Circle, rhythm: C
         description: `The caller claimed to be "${claimed}", who isn't in Rose's family circle` });
     } else {
       const r = lastContact(claimedMember.id);
-      // The contract types everAskedForMoney as always false, and family exposes no
-      // "emergency mentioned" feed yet, so a money request claimed by a relative counts.
+      // D6: family history may truthfully report either value.
       if (!r || r.everAskedForMoney === false) {
         const when = r?.lastContactAt ? ` last talked with Rose on ${dayName(r.lastContactAt, circle.senior.tz)} and` : '';
         contactNote = `${claimedMember.name}${when} has never asked for money`;

@@ -38,7 +38,7 @@ export class MoneyService {
     const now = this.d.now();
     const order: Order = {
       id: id('ord_'), seniorId: req.seniorId, request: req,
-      status: fraud.risk === 'high' ? 'held' : 'approved',
+      status: (fraud.hardStop || fraud.risk === 'high') ? 'held' : 'approved',
       ...(priced ? { fulfilment: priced.fulfilment } : {}),
       fraud, createdAt: now.toISOString(),
     };
@@ -113,7 +113,7 @@ export class MoneyService {
       throw new ApiError(403, 'NOT_A_MEMBER', 'Only circle members can resolve holds');
     }
 
-    if (b.decision === 'release' && order.fraud.risk === 'high') {
+    if (b.decision === 'release' && (order.fraud.hardStop || order.fraud.risk === 'high')) {
       if (b.method !== 'passkey_web') {
         throw new ApiError(403, 'PASSKEY_REQUIRED', 'Releasing a high-risk hold requires a passkey');
       }

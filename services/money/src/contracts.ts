@@ -58,7 +58,7 @@ export interface ContactRhythm {
   seniorId: string;
   perMember: {
     memberId: string; lastContactAt?: string; usualPattern?: string;
-    callsLast30d: number; everAskedForMoney: false;
+    callsLast30d: number; everAskedForMoney: boolean;
   }[];
 }
 

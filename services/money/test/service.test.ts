@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { COOLING_OFF_MS } from '../src/service';
-import { DEMO_SCAM, GROCERIES, MEDICARE, NOW, setup } from './helpers';
+import { DEMO_SCAM, GROCERIES, MIA, MEDICARE, NOW, setup } from './helpers';
 
 const passkey = (holdId: string, member = 'mem_lisa') => ({ credentialId: `cred_${member}`, holdId, signature: 'sig' });
 
@@ -95,4 +95,12 @@ describe('holds', () => {
     expect(events.sent.at(-1)?.name).toBe('fraud.hold_resolved');
     await expect(service.confirm(o.id)).rejects.toMatchObject({ code: 'ORDER_NOT_CONFIRMABLE' });
   });
+});
+
+it('Mia gift routed through Lisa stays low-risk and can be paid', async () => {
+  const { service } = await setup();
+  const order = await service.draft(MIA);
+  expect(order.fraud.risk).toBe('low');
+  expect(order.fraud.signals.map(s => s.code)).not.toContain('GIFT_CARD_NONMEMBER');
+  expect((await service.confirm(order.id)).status).toBe('paid');
 });

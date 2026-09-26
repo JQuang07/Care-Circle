@@ -1,3 +1,5 @@
+D6/D7/D8 verified: contact history accepts both boolean values, Mia through Lisa pays at low risk, cancel requires no passkey, and high-risk/hard-stop release requires passkey verification. 130 tests plus typecheck passed.
+
 Gift-card grocery regression verified: DoorDash $200 Apple gift card produces GIFT_CARD_NONMEMBER hard stop; unmatched fallback preserves the hard stop too. 128 tests passed.
 
 D14 paid orders dispatch delivery asynchronously with the exact charged amount. Repeated confirmation does not re-dispatch; dispatch failures are logged without undoing payment. 126 tests and typecheck passed.
