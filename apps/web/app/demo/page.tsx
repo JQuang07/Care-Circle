@@ -9,6 +9,7 @@ import { HoldSchema, OrderSchema, ScheduledCallSchema } from "@care-circle/contr
 import { DEMO_BUTTONS, DANNY_CANCELS, type DemoScript } from "@care-circle/e2e/scripts";
 import { svc, explain } from "@/lib/svc";
 import { RESET_ORDER } from "@/lib/services";
+import { DoorDashPanel } from "@/components/DoorDashPanel";
 import { usePoll } from "@/lib/usePoll";
 
 type Status = { tone: "ok" | "err" | "busy"; text: string };
@@ -152,6 +153,8 @@ export default function Demo() {
           <Line s={status.reset} />
         </div>
       </section>
+
+      <DoorDashPanel />
 
       {evalResult !== undefined && (
         <section aria-labelledby="eval-h" className="mt-6 rounded-xl bg-white p-4">

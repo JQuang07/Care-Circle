@@ -5,6 +5,14 @@
  */
 export type ServiceName = "voice" | "money" | "family" | "delivery";
 
+/**
+ * `POST delivery /orders/:id/checkout` places a REAL DoorDash order. The browser must send
+ * `{ confirmedBy, confirmPhrase }`; the proxy checks the phrase server-side and forwards
+ * only `{ confirmedBy }`, so the typed confirmation can't be skipped by calling the API directly.
+ */
+export const CHECKOUT_PATH = /^\/orders\/[\w-]+\/checkout$/;
+export const CHECKOUT_PHRASE = "PLACE REAL ORDER";
+
 export const BROWSER_ALLOWED: Record<ServiceName, { GET: RegExp[]; POST: RegExp[] }> = {
   voice: {
     GET: [/^\/health$/, /^\/demo\/calls$/ /* D3 */],
@@ -21,7 +29,7 @@ export const BROWSER_ALLOWED: Record<ServiceName, { GET: RegExp[]; POST: RegExp[
   // D14. No `/demo/advance` (mock-only test hook, not a demo control).
   delivery: {
     GET: [/^\/health$/, /^\/orders$/, /^\/orders\/[\w-]+$/],
-    POST: [/^\/demo\/reset$/ /* D1 */],
+    POST: [/^\/quote$/, CHECKOUT_PATH /* guarded again in the proxy */, /^\/demo\/reset$/ /* D1 */],
   },
 };
 
