@@ -1,0 +1,523 @@
+import { randomUUID } from "node:crypto";
+import { z } from "zod";
+import {
+  ApiError,
+  assert,
+  orderRequest,
+  type Session,
+  type Order,
+  type Hold,
+  type Circle,
+  type Proposal,
+  type Pending,
+} from "./types.js";
+import type { Dependencies } from "./dependencies.js";
+import type { Reasoner } from "./reasoner.js";
+import { Store } from "./store.js";
+export const affirmative = (text: string) =>
+  /^(yes|yes please|yes go ahead|go ahead|please do|that’s right|that's right|confirm|okay|ok)[.!\s]*$/i.test(
+    text.trim(),
+  );
+export const negative = (text: string) =>
+  /^(no|no thanks|cancel|never mind|nevermind|stop)[.!\s]*$/i.test(text.trim());
+export class Engine {
+  startVerification?: (
+    s: Session,
+    holdId: string,
+    memberId: string,
+  ) => Promise<{ callId: string }>;
+  constructor(
+    public store: Store,
+    public deps: Dependencies,
+    private reasoner: Reasoner,
+  ) {}
+  async create(seniorId: string, kind: Session["kind"] = "inbound") {
+    const s: Session = {
+      callId: `call_${randomUUID()}`,
+      seniorId,
+      kind,
+      startedAt: new Date().toISOString(),
+      transcript: [],
+      privateSpans: [],
+      latencies: [],
+    };
+    await this.store.save(s);
+    return s;
+  }
+  add(s: Session, speaker: string, text: string) {
+    const ms = Math.max(Date.now(), (s.lastTs || 0) + 1);
+    s.lastTs = ms;
+    const turn = { speaker, text, ts: new Date(ms).toISOString() };
+    s.transcript.push(turn);
+    return turn;
+  }
+  async say(s: Session, text: string) {
+    this.add(s, "agent", text);
+    await this.store.save(s);
+    return text;
+  }
+  async begin(s: Session) {
+    const proposals = await this.deps.call<Proposal[]>(
+      "family",
+      "GET",
+      `/proposals/${s.seniorId}/pending-senior`,
+    );
+    const p = proposals.find((p) => p.status === "awaiting_senior");
+    if (p?.slots[0]) return this.offerSchedule(s, p, p.slots[0].id);
+    return this.say(
+      s,
+      "Hello. It’s Care Circle, your family’s helper. What can I help you with today?",
+    );
+  }
+  delivered(s: Session) {
+    if (s.pending) s.pendingDelivered = true;
+    return this.store.save(s);
+  }
+  async turn(s: Session, text: string) {
+    assert(!s.endedAt, "CALL_ENDED", "This call has ended.");
+    const turn = this.add(s, "senior", text);
+    if (
+      /keep this between us|keep (this|that) private|don'?t share this/i.test(
+        text,
+      )
+    ) {
+      s.privateStart ||= turn.ts;
+      s.pending = undefined;
+      s.pendingDelivered = false;
+      return this.say(
+        s,
+        "I’ll keep this part private from your family. What would you like to tell me?",
+      );
+    }
+    if (negative(text)) {
+      s.pending = undefined;
+      s.pendingDelivered = false;
+      return this.say(s, "All right. I won’t go ahead with that.");
+    }
+    if (/say that again|repeat|didn'?t hear/i.test(text))
+      return this.say(
+        s,
+        s.transcript.filter((t) => t.speaker === "agent").at(-1)?.text ||
+          "What can I help you with?",
+      );
+    if (s.pending) {
+      if (affirmative(text)) {
+        if (!s.pendingDelivered)
+          return this.say(
+            s,
+            "Let me finish the details first. " +
+              this.pendingSummary(s.pending),
+          );
+        const pending = s.pending;
+        s.pending = undefined;
+        s.pendingDelivered = false;
+        // Persist consumed authorization BEFORE crossing a mutation boundary.
+        await this.store.save(s);
+        if (pending.kind === "order") {
+          const orders = await this.deps.call<Order[]>(
+            "money",
+            "GET",
+            `/orders?seniorId=${s.seniorId}`,
+          );
+          const current = orders.find((o) => o.id === pending.order.id);
+          assert(
+            current?.status === "approved" &&
+              !current.fraud.hardStop &&
+              current.fraud.risk !== "high",
+            "ORDER_NOT_APPROVED",
+            "This order needs family review.",
+          );
+          assert(
+            JSON.stringify(current.request) ===
+              JSON.stringify(pending.order.request),
+            "ORDER_CHANGED",
+            "Order details changed. Please request a fresh draft.",
+          );
+          const paid = await this.deps.call<Order>(
+            "money",
+            "POST",
+            `/orders/${current.id}/confirm`,
+            {},
+          );
+          assert(
+            paid.status === "paid",
+            "NOT_PAID",
+            "Payment has not been confirmed.",
+          );
+          return this.say(
+            s,
+            "Your order is paid. Is there anything else I can help with?",
+          );
+        }
+        if (pending.kind === "verification") {
+          assert(
+            this.startVerification,
+            "NOT_CONFIGURED",
+            "Verification is unavailable.",
+          );
+          await this.startVerification(s, pending.holdId, pending.memberId);
+          return this.say(
+            s,
+            "I’m calling your family’s stored number so you can check together. Remember to ask unexpected callers for your family’s private code word.",
+          );
+        }
+        const proposals = await this.deps.call<Proposal[]>(
+          "family",
+          "GET",
+          `/proposals/${s.seniorId}/pending-senior`,
+        );
+        assert(
+          proposals.some(
+            (p) =>
+              p.id === pending.proposalId &&
+              p.status === "awaiting_senior" &&
+              p.slots.some((slot) => slot.id === pending.slotId),
+          ),
+          "SLOT_UNAVAILABLE",
+          "That time is no longer awaiting confirmation.",
+        );
+        await this.deps.call(
+          "family",
+          "POST",
+          `/schedule/proposals/${pending.proposalId}/confirm-senior`,
+          { slotId: pending.slotId },
+        );
+        return this.say(s, "Your family time is confirmed.");
+      }
+      // Any change or ambiguous answer invalidates the old confirmation.
+      s.pending = undefined;
+      s.pendingDelivered = false;
+    }
+    const results: { name: string; result: unknown }[] = [];
+    for (let step = 0; step < 5; step++) {
+      const decision = await this.reasoner.next(s, results);
+      if (!decision.actions.length)
+        return this.say(s, decision.text || "Could you tell me a little more?");
+      for (const action of decision.actions) {
+        const result = await this.tool(s, action.name, action.args);
+        if (typeof result === "object" && result !== null && "speak" in result)
+          return this.say(s, String(result.speak));
+        results.push({ name: action.name, result });
+      }
+    }
+    return this.say(
+      s,
+      "Let’s take that one step at a time. What would you like to do first?",
+    );
+  }
+  pendingSummary(p: Pending) {
+    const merchants: Record<string, string> = {
+      mer_freshmart: "FreshMart",
+      mer_cornerrx: "CornerRx",
+      mer_crumb: "Sweet Crumb Bakery",
+      mer_ridemock: "RideMock",
+    };
+    if (p.kind === "order")
+      return `That’s ${p.order.request.items.map((i) => `${i.qty} ${i.name}`).join(", ")} from ${merchants[p.order.request.merchantId || ""] || p.order.request.payeeDescription || "the requested merchant"}, $${(p.order.request.amountCents / 100).toFixed(2)}. Should I go ahead?`;
+    if (p.kind === "verification")
+      return "Would you like me to call your family’s stored number to check together?";
+    return "Does that family time work for you?";
+  }
+  async offerSchedule(s: Session, p: Proposal, slotId: string) {
+    const slot = p.slots.find((slot) => slot.id === slotId);
+    assert(
+      slot && p.status === "awaiting_senior",
+      "SLOT_NOT_READY",
+      "Family must agree to a slot first.",
+    );
+    s.pending = { kind: "schedule", proposalId: p.id, slotId };
+    s.pendingDelivered = false;
+    return this.say(
+      s,
+      `Your family proposed ${slot.localTimes[s.seniorId] || slot.startUtc}. Does that work for you?`,
+    );
+  }
+  async tool(
+    s: Session,
+    name: string,
+    args: Record<string, unknown>,
+  ): Promise<unknown> {
+    if (name === "mark_private") {
+      s.privateStart ||=
+        s.transcript.filter((t) => t.speaker === "senior").at(-1)?.ts ||
+        new Date().toISOString();
+      await this.store.save(s);
+      return { speak: "I’ll keep this part private from your family." };
+    }
+    if (name === "check_budget")
+      return this.deps.call("money", "GET", `/credentials/${s.seniorId}`);
+    if (name === "get_family_context") {
+      const [circle, rhythm] = await Promise.all([
+        this.deps.call<Circle>("family", "GET", `/circle/${s.seniorId}`),
+        this.deps.call("family", "GET", `/contact-rhythm/${s.seniorId}`),
+      ]);
+      return {
+        senior: { id: circle.senior.id, name: circle.senior.name },
+        members: circle.members.map(({ id, name, isVerifier }) => ({
+          id,
+          name,
+          isVerifier,
+        })),
+        rhythm,
+      };
+    }
+    if (name === "get_pending_proposals")
+      return this.deps.call(
+        "family",
+        "GET",
+        `/proposals/${s.seniorId}/pending-senior`,
+      );
+    // Private details must not reach any family-facing mutation or fraud notification.
+    if (s.privateStart)
+      return {
+        speak:
+          "This part is private. Let’s start a new call when you want to place an order or arrange family time.",
+      };
+    if (name === "place_order" || name === "precheck_purchase") {
+      const req = orderRequest.parse({ ...args, seniorId: s.seniorId });
+      if (req.type === "pharmacy_refill")
+        return {
+          speak:
+            "I can’t check your existing prescriptions yet. Please contact your usual pharmacy or a family member.",
+        };
+      req.context.transcriptExcerpt = s.transcript
+        .filter((t) => t.speaker === "senior")
+        .slice(-8)
+        .map((t) => t.text)
+        .join("\n")
+        .slice(-12000);
+      if (name === "precheck_purchase")
+        return this.deps.call("money", "POST", "/fraud/assess", req);
+      const order = await this.deps.call<Order>(
+        "money",
+        "POST",
+        "/orders/draft",
+        req,
+      );
+      assert(
+        order.seniorId === s.seniorId,
+        "WRONG_SENIOR",
+        "Order belongs to another senior.",
+      );
+      if (order.status === "held") {
+        const circle = await this.deps.call<Circle>(
+          "family",
+          "GET",
+          `/circle/${s.seniorId}`,
+        );
+        const member = circle.members.find(
+          (m) =>
+            m.id === order.fraud.suggestedVerifierId &&
+            m.isVerifier &&
+            (m.age === undefined || m.age >= 18),
+        );
+        if (order.holdId && member)
+          s.pending = {
+            kind: "verification",
+            holdId: order.holdId,
+            memberId: member.id,
+          };
+        s.pendingDelivered = false;
+        return {
+          speak: `${order.fraud.seniorFacingMessage} ${member ? `Would you like me to call ${member.name} on the family’s stored number?` : "A family member can help you check this in the app."} Remember to ask unexpected callers for your family’s private code word.`,
+        };
+      }
+      assert(
+        order.status === "approved" &&
+          !order.fraud.hardStop &&
+          order.fraud.risk !== "high",
+        "NOT_APPROVED",
+        "This order needs family review.",
+      );
+      s.pending = { kind: "order", order };
+      s.pendingDelivered = false;
+      return { speak: this.pendingSummary(s.pending) };
+    }
+    if (name === "start_verification_call") {
+      const a = z
+        .object({ holdId: z.string(), memberId: z.string() })
+        .parse(args);
+      await this.verificationContext(s.seniorId, a.holdId, a.memberId);
+      s.pending = { kind: "verification", ...a };
+      s.pendingDelivered = false;
+      return { speak: this.pendingSummary(s.pending) };
+    }
+    if (name === "resolve_hold_verbal")
+      throw new ApiError(
+        403,
+        "VERIFIER_REQUIRED",
+        "Only the bound verifier callback may resolve a hold.",
+      );
+    if (name === "request_family_time") {
+      const a = z
+        .object({
+          kind: z.enum(["video_call", "visit"]),
+          who: z.array(z.string()).optional(),
+          when: z.string().max(500).optional(),
+          includeDependents: z.boolean().optional(),
+        })
+        .parse(args);
+      const circle = await this.deps.call<Circle>(
+        "family",
+        "GET",
+        `/circle/${s.seniorId}`,
+      );
+      assert(
+        !a.who ||
+          a.who.every((id) =>
+            circle.members.some(
+              (m) => m.id === id && (m.age === undefined || m.age >= 18),
+            ),
+          ),
+        "UNKNOWN_MEMBER",
+        "Only adult circle members can be contacted.",
+      );
+      await this.deps.call("family", "POST", "/schedule/request", {
+        seniorId: s.seniorId,
+        kind: a.kind,
+        memberIds: a.who,
+        includeDependents: a.includeDependents,
+        initiatedBy: "senior",
+        preferredWindow: a.when,
+      });
+      return {
+        speak:
+          "I’ve asked your family to find a time. I’ll confirm it with you after they reply.",
+      };
+    }
+    if (name === "confirm_family_time") {
+      const a = z
+        .object({ proposalId: z.string(), slotId: z.string() })
+        .parse(args);
+      const proposals = await this.deps.call<Proposal[]>(
+        "family",
+        "GET",
+        `/proposals/${s.seniorId}/pending-senior`,
+      );
+      const p = proposals.find((p) => p.id === a.proposalId);
+      assert(
+        p,
+        "PROPOSAL_NOT_FOUND",
+        "That proposal is not awaiting confirmation.",
+      );
+      // Avoid double appending: offerSchedule writes the canonical agent turn.
+      const text = await this.offerSchedule(s, p, a.slotId);
+      s.transcript.pop();
+      return { speak: text };
+    }
+    throw new ApiError(400, "UNKNOWN_TOOL", "Unknown tool.");
+  }
+  async verificationContext(
+    seniorId: string,
+    holdId: string,
+    memberId: string,
+  ) {
+    const [circle, holds, orders] = await Promise.all([
+      this.deps.call<Circle>("family", "GET", `/circle/${seniorId}`),
+      this.deps.call<Hold[]>("money", "GET", `/holds?seniorId=${seniorId}`),
+      this.deps.call<Order[]>("money", "GET", `/orders?seniorId=${seniorId}`),
+    ]);
+    const member = circle.members.find(
+      (m) =>
+        m.id === memberId &&
+        m.isVerifier &&
+        (m.age === undefined || m.age >= 18),
+    );
+    const hold = holds.find(
+      (h) => h.id === holdId && h.seniorId === seniorId && h.status === "open",
+    );
+    const order = orders.find(
+      (o) => o.id === hold?.orderId && o.seniorId === seniorId,
+    );
+    assert(
+      member && hold && order,
+      "INVALID_VERIFICATION",
+      "Open hold and stored adult verifier required.",
+    );
+    return { member, hold, order };
+  }
+  async resolveVerifier(s: Session, decision: "cancel" | "release") {
+    const v = s.verification;
+    assert(v, "VERIFIER_REQUIRED", "Verifier leg required.", 403);
+    assert(!v.resolved, "ALREADY_RESOLVED", "Decision already processed.");
+    const { order } = await this.verificationContext(
+      s.seniorId,
+      v.holdId,
+      v.memberId,
+    );
+    assert(
+      decision === "cancel" ||
+        (order.fraud.risk !== "high" && !order.fraud.hardStop),
+      "PASSKEY_REQUIRED",
+      "A family member must approve this in the app.",
+    );
+    assert(!v.resolved, "ALREADY_RESOLVED", "Decision already processed.");
+    v.resolved = true;
+    await this.store.save(s);
+    try {
+      return await this.deps.call(
+        "money",
+        "POST",
+        `/holds/${v.holdId}/resolve`,
+        {
+          decision,
+          byMemberId: v.memberId,
+          method: "verbal_on_verification_call",
+        },
+      );
+    } catch (e) {
+      /* Unknown outcome: do not replay a financial mutation. */ throw e;
+    }
+  }
+  async end(s: Session) {
+    if (!s.endedAt) {
+      s.endedAt = new Date(
+        Math.max(Date.now(), (s.lastTs || 0) + 1),
+      ).toISOString();
+      if (s.privateStart)
+        s.privateSpans.push({ startTs: s.privateStart, endTs: s.endedAt });
+      await this.store.save(s);
+    }
+    const {
+      callId,
+      seniorId,
+      kind,
+      startedAt,
+      endedAt,
+      transcript,
+      privateSpans,
+    } = s;
+    await this.store.enqueue(`call-ended:${callId}`, {
+      callId,
+      seniorId,
+      kind,
+      startedAt,
+      endedAt,
+      transcript,
+      privateSpans,
+    });
+  }
+  private flushing = false;
+  async flush() {
+    if (this.flushing) return;
+    this.flushing = true;
+    try {
+      for (const [id, job] of this.store.jobs) {
+        if (job.done || !id.startsWith("call-ended:")) continue;
+        try {
+          await this.deps.call(
+            "family",
+            "POST",
+            "/webhooks/call-ended",
+            job.payload,
+          );
+          await this.store.mark(id, true);
+        } catch {
+          await this.store.mark(id, false);
+        }
+      }
+    } finally {
+      this.flushing = false;
+    }
+  }
+}
