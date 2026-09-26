@@ -3,7 +3,7 @@
 - [x] D15: mock external providers only; real HTTP family/events by default.
 - [x] D9: GET /orders/:id.
 - [x] D14: authenticated, idempotent delivery status receiver.
-- [ ] D9: authoritative delivery grocery quotes with FreshMart fallback.
+- [x] D9: authoritative delivery grocery quotes with FreshMart fallback.
 - [ ] D14: dispatch delivery only after payment, exact charged amount.
 - [ ] Gift-card grocery-rail fraud regression.
 - [ ] D6/D7/D8: history boolean, Mia through Lisa, cancel/release safeguards.

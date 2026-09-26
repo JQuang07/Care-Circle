@@ -1,4 +1,5 @@
 import { fileURLToPath } from 'node:url';
+import { httpDelivery } from './delivery';
 import { buildApp } from './app';
 import { buildService, makeLlm, seedIfEmpty } from './deps';
 import { selectNeighbors } from './neighbors';
@@ -20,7 +21,8 @@ const payments = choosePayments(env, warn);
 const llm = mock ? null : makeLlm(env);
 if (!mock && !llm) warn('No META_API_KEY: Layer 2 and messages use the offline heuristic/templates');
 
-const service = buildService({ store, family, payments, events, llm, now, mock, log: warn });
+const delivery = env.DELIVERY_URL && env.MOCK_DEPENDENCIES !== '1' ? httpDelivery(env.DELIVERY_URL, env.CC_INTERNAL_SECRET ?? '', warn) : undefined;
+const service = buildService({ delivery, store, family, payments, events, llm, now, mock, log: warn });
 const app = buildApp({
   service, mock, secret: env.CC_INTERNAL_SECRET, logger: true,
   evalResultsPath: fileURLToPath(new URL('../eval/results/latest.json', import.meta.url)),

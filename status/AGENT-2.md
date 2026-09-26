@@ -1,3 +1,5 @@
+D9 grocery quotes implemented before fraud assessment, including fees, FreshMart outage fallback, quote validation, and payment blocking for unresolved items. 124 tests passed; typecheck passed.
+
 D14 delivery receiver implemented: authenticated, validated, idempotent, and rejects backward status changes. Tests pass.
 
 D9 order lookup implemented, including authenticated access and contract-shaped 404; money tests pass.

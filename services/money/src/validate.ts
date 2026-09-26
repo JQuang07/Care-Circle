@@ -12,8 +12,8 @@ export function parseOrderRequest(body: unknown): OrderRequest {
   if (!Number.isInteger(b.amountCents) || (b.amountCents as number) < 0) throw bad('amountCents must be a non-negative integer');
   if (!Array.isArray(b.items)) throw bad('items must be an array');
   for (const i of b.items) {
-    if (!i || typeof i.name !== 'string' || !Number.isFinite(i.qty)) throw bad('each item needs name and qty');
-    if (i.priceCents !== undefined && !Number.isInteger(i.priceCents)) throw bad('priceCents must be an integer');
+    if (!i || typeof i.name !== 'string' || (!Number.isSafeInteger(i.qty) || i.qty <= 0)) throw bad('each item needs name and qty');
+    if (i.priceCents !== undefined && (!Number.isSafeInteger(i.priceCents) || i.priceCents < 0)) throw bad('priceCents must be an integer');
   }
   if (!b.context || typeof b.context.transcriptExcerpt !== 'string') throw bad('context.transcriptExcerpt is required');
   for (const k of ['merchantId', 'payeeDescription', 'recipientMemberId'] as const) {

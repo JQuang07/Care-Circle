@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Credential, DeliveryStatus, FraudAssessment, Hold, Order, OrderRequest } from './contracts';
+import type { DeliveryClient } from './delivery';
 import { ApiError } from './errors';
 import type { Events } from './events';
 import type { FamilyClient } from './family';
@@ -13,6 +14,7 @@ export const COOLING_OFF_MS = 24 * 60 * 60 * 1000;
 const id = (prefix: string) => `${prefix}${randomUUID().replace(/-/g, '').slice(0, 12)}`;
 
 export interface ServiceDeps {
+  delivery?: DeliveryClient;
   store: Store;
   family: FamilyClient;
   payments: PaymentsProvider;
@@ -29,11 +31,14 @@ export class MoneyService {
   assess(req: OrderRequest) { return this.d.assess(req); }
 
   async draft(req: OrderRequest): Promise<Order> {
+    const priced = req.type === 'groceries' && this.d.delivery ? await this.d.delivery.price(req) : undefined;
+    req = priced?.request ?? req;
     const fraud = await this.d.assess(req);
     const now = this.d.now();
     const order: Order = {
       id: id('ord_'), seniorId: req.seniorId, request: req,
       status: fraud.risk === 'high' ? 'held' : 'approved',
+      ...(priced ? { fulfilment: priced.fulfilment } : {}),
       fraud, createdAt: now.toISOString(),
     };
     if (order.status === 'held') {
@@ -58,6 +63,7 @@ export class MoneyService {
     if (order.status !== 'approved') {
       throw new ApiError(409, 'ORDER_NOT_CONFIRMABLE', `Order is ${order.status}`);
     }
+    if (order.fulfilment?.unmatchedItems?.length) throw new ApiError(409, 'UNMATCHED_ITEMS', 'Resolve unavailable or ambiguous items before payment');
     const now = this.d.now();
     const amount = effectiveAmountCents(order.request);
     // Re-check caps at payment time unless a family member released it by passkey.
