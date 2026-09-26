@@ -23,11 +23,13 @@ Also owns `services/delivery` on **:4004** (D14). Run everything with `pnpm dev`
 - **Integration v2 · task 6 (part):** config reads only `FAMILY_PORT ?? 4003`; `PORT` is ignored.
 - **Integration v2 · task 7:** the Postgres store test now runs, not skipped, against Docker's `care-circle-db`. 103 family tests and 15 delivery tests pass.
 
+- **Part 3 (live checks, 2026-09-27):** `pnpm health` shows 5 green; 103 family and 15 delivery tests pass. Live: delivery `/quote` returns matched lines + fees; a `dry_run_complete` event puts the delivery message in Lisa's inbox. Replaying a real money hold into `/webhooks/fraud-hold` gives Danny a `fraud_card` with `calling_her` / `cancel_hold` / `release_hold` and `{ orderId, holdId }`.
+
 ## In progress
-- Integration v2 tasks 2–7 (`docs/agents/agent-3-family.md` Part 1), then delivery upkeep and live E2E. Checklist: `services/family/TASKS.md` Phase 5.
+- Waiting to rerun `pnpm e2e` after the next integration merge (see BUGS); then Part 4 (DoorDash MCP, with Andy).
 
 ## Blocked on
-- **Task 6, contracts swap:** the addendum types (`everAskedForMoney: boolean`, `birthday`, `ScheduledCallDue.phase`, `Quote`/`DeliveryOrder`) are on `origin/claire` but not on `main`, so `services/family/src/contracts-local.ts` and `services/delivery/src/types.ts` stay until Agent 4's contracts merge.
+- **Task 6, contracts swap:** the addendum types (`everAskedForMoney: boolean`, `birthday`, `ScheduledCallDue.phase`, `Quote`/`DeliveryOrder`) are on `origin/claire` but not on `main`, so `services/family/src/contracts-local.ts` and `services/delivery/src/types.ts` stay until Agent 4's contracts merge. Checked 2026-09-27: claire's `packages/contracts/src/types.ts` matches both local files field for field, so the swap is mechanical once it's on `main`. The swap also adds `"@care-circle/contracts": "workspace:*"` to family and delivery, which changes the root `pnpm-lock.yaml`. **Agent 4:** please add those two deps when you merge contracts, or say that I may.
 - Nothing else. (Postgres fixed: the native Windows services are stopped and Docker's database serves :5432.)
 
 ## CONTRACT CHANGE REQUESTS
@@ -46,6 +48,7 @@ Also owns `services/delivery` on **:4004** (D14). Run everything with `pnpm dev`
 9. **CCR-9 (auth scope).** Family requires `X-CC-Secret` on `/webhooks/*`, `/circle/*`, `/jobs/*`, `/demo/*`. Other routes stay open so the web app can call them. Set `FAMILY_REQUIRE_SECRET_ALL=1` to lock everything once web calls go server-side.
 
 ## BUGS FROM INTEGRATION
+- **Rerun (2026-09-27, later): still 0 of 5, with the same causes.** `e2e/reports/latest.md` routes **E2E 3 to Agent 3, but that's wrong**. Money holds were created (`GET money /holds` shows them open); money on `main`/`andy` uses `RecordingEvents` under `MOCK=1` (`services/money/src/index.ts:23`), so `/webhooks/fraud-hold` never gets called. Replaying one of those holds into family by hand produces the fraud card. Arpit's fix is already on `origin/arpit` (`neighbors.ts`). **Agent 4:** please route "no fraud_card" to Agent 2 in `scripts/file-bugs.ts`.
 - **Live E2E run (2026-09-27, all services on this branch's code, `pnpm health` 5 green): 0 of 5 pass, and none of the failures are in family or delivery.**
   - E2E 1 and E2E 5 (Agents 1 and 2): the grocery order stays `approved` and never becomes `paid`, so the voice confirm → money `/orders/:id/confirm` step doesn't happen. E2E 5's privacy checks never ran.
   - E2E 2 (Agent 1): family now sends Lisa and Danny the proposal (D10 fix confirmed), then voice `POST /demo/simulate-inbound` → HTTP 500 INTERNAL_ERROR.

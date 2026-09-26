@@ -78,7 +78,11 @@ Legend: `[x]` done · `[ ]` open · **DoD** = definition-of-done item.
 - [ ] switch `src/types.ts` to `@care-circle/contracts` once `Quote`, `QuoteLine`, `DeliveryOrder` reach `main` (only on `origin/claire` so far)
 ### Part 3 · Verify against the real services
 - [x] `pnpm health` 5 green
-- [ ] E2E: ran 2026-09-27; failures are in voice/money (see status/AGENT-3.md → BUGS). Rerun after their fixes. Still to do: `pnpm e2e` E2E 2 and E2E 5 pass; delivery `/quote` curl; delivery message in Lisa's inbox after a paid grocery order (needs Arpit's tasks 4–5)
+- [x] delivery `/quote` curl (live, mock provider: matched lines + fees + total)
+- [x] `dry_run_complete` event → Lisa's inbox shows "Rose's groceries from FreshMart are ready (demo: no real delivery)." (live)
+- [x] fraud-hold from a real money hold → Danny's `fraud_card` with D5 actions (live replay, since money on this branch doesn't send events yet)
+- [ ] `pnpm e2e` E2E 2 and E2E 5 pass: rerun 2026-09-27, still 0/5, every cause in voice/money code that isn't on `andy` yet (see status/AGENT-3.md → BUGS). Rerun after the next integration merge.
+- [ ] A paid grocery order produces a delivery `dry_run_complete` end to end (needs Arpit's tasks 4–5 merged)
 ### Part 4 · DoorDash MCP (human + Claude): see the runbook
 
 ## Environment notes
