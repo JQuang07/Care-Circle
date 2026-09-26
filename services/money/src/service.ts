@@ -1,3 +1,4 @@
+import { generateHistory } from './seed';
 import { randomUUID } from 'node:crypto';
 import type { Credential, DeliveryStatus, FraudAssessment, Hold, Order, OrderRequest } from './contracts';
 import type { DeliveryClient } from './delivery';
@@ -160,6 +161,11 @@ export class MoneyService {
     const circle = await this.d.family.getCircle(seniorId);
     const spent = spentThisMonth(await loadLedger(this.d.store, seniorId, now), now, circle.senior.tz);
     return { ...cred, spentThisMonthCents: spent, remainingThisMonthCents: Math.max(0, cred.monthlyCapCents - spent) };
+  }
+
+  async reset() {
+    await this.d.store.reset(generateHistory(this.d.now()));
+    return { ok: true };
   }
 
   async deliveryStatus(body: unknown): Promise<Order> {

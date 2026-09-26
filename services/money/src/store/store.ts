@@ -8,6 +8,7 @@ export interface LedgerEntry {
 
 export interface Store {
   init(): Promise<void>;
+  reset(seed: LedgerEntry[]): Promise<void>;
   addLedger(entries: LedgerEntry[]): Promise<void>;
   getLedger(seniorId: string, sinceIso: string): Promise<LedgerEntry[]>;
   countLedger(seniorId: string): Promise<number>;
@@ -27,6 +28,9 @@ export class MemoryStore implements Store {
   private orders = new Map<string, Order>();
   private holds = new Map<string, Hold>();
   async init() {}
+  async reset(seed: LedgerEntry[]) {
+    this.orders.clear(); this.holds.clear(); this.ledger = seed.map(clone);
+  }
   async addLedger(entries: LedgerEntry[]) { this.ledger.push(...entries.map(clone)); }
   async getLedger(seniorId: string, since: string) {
     return this.ledger.filter((e) => e.seniorId === seniorId && e.at >= since).map(clone);

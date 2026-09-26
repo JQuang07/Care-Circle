@@ -1,3 +1,5 @@
+D1 reset implemented for memory and PostgreSQL: authenticated, restores seeded ledger and clears money orders/holds. PostgreSQL reset is transactional and limited to money schema. 132 tests/typecheck pass; PostgreSQL runtime test awaits Docker.
+
 D6/D7/D8 verified: contact history accepts both boolean values, Mia through Lisa pays at low risk, cancel requires no passkey, and high-risk/hard-stop release requires passkey verification. 130 tests plus typecheck passed.
 
 Gift-card grocery regression verified: DoorDash $200 Apple gift card produces GIFT_CARD_NONMEMBER hard stop; unmatched fallback preserves the hard stop too. 128 tests passed.

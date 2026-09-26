@@ -7,7 +7,7 @@
 - [x] D14: dispatch delivery only after payment, exact charged amount.
 - [x] Gift-card grocery-rail fraud regression.
 - [x] D6/D7/D8: history boolean, Mia through Lisa, cancel/release safeguards.
-- [ ] D1: authenticated money reset and seed.
+- [x] D1: authenticated money reset and seed.
 - [ ] Shared contract imports when compatible with main.
 - [ ] Tests, fraud eval, HTTP integration, health and E2E; record blockers.
 

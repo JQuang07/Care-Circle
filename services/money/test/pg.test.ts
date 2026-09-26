@@ -31,5 +31,9 @@ describe.skipIf(!url)('PgStore (money schema)', () => {
     const expired = await s.expireDueHolds();
     expect(expired.map((h) => h.id)).toContain(held.holdId);
     expect((await store.getOrder(held.id))?.status).toBe('cancelled');
+    await s.reset();
+    expect(await store.listOrders('sen_rose')).toEqual([]);
+    expect(await store.listHolds('sen_rose')).toEqual([]);
+    expect(await store.countLedger('sen_rose')).toBe(generateHistory(now).length);
   });
 });
