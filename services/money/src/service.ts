@@ -1,5 +1,7 @@
+import { generateHistory } from './seed';
 import { randomUUID } from 'node:crypto';
-import type { Credential, FraudAssessment, Hold, Order, OrderRequest } from './contracts';
+import type { Credential, DeliveryStatus, FraudAssessment, Hold, Order, OrderRequest } from './contracts';
+import type { DeliveryClient } from './delivery';
 import { ApiError } from './errors';
 import type { Events } from './events';
 import type { FamilyClient } from './family';
@@ -13,6 +15,8 @@ export const COOLING_OFF_MS = 24 * 60 * 60 * 1000;
 const id = (prefix: string) => `${prefix}${randomUUID().replace(/-/g, '').slice(0, 12)}`;
 
 export interface ServiceDeps {
+  delivery?: DeliveryClient;
+  log?: (message: string) => void;
   store: Store;
   family: FamilyClient;
   payments: PaymentsProvider;
@@ -29,11 +33,14 @@ export class MoneyService {
   assess(req: OrderRequest) { return this.d.assess(req); }
 
   async draft(req: OrderRequest): Promise<Order> {
+    const priced = req.type === 'groceries' && this.d.delivery ? await this.d.delivery.price(req) : undefined;
+    req = priced?.request ?? req;
     const fraud = await this.d.assess(req);
     const now = this.d.now();
     const order: Order = {
       id: id('ord_'), seniorId: req.seniorId, request: req,
-      status: fraud.risk === 'high' ? 'held' : 'approved',
+      status: (fraud.hardStop || fraud.risk === 'high') ? 'held' : 'approved',
+      ...(priced ? { fulfilment: priced.fulfilment } : {}),
       fraud, createdAt: now.toISOString(),
     };
     if (order.status === 'held') {
@@ -58,6 +65,7 @@ export class MoneyService {
     if (order.status !== 'approved') {
       throw new ApiError(409, 'ORDER_NOT_CONFIRMABLE', `Order is ${order.status}`);
     }
+    if (order.fulfilment?.unmatchedItems?.length) throw new ApiError(409, 'UNMATCHED_ITEMS', 'Resolve unavailable or ambiguous items before payment');
     const now = this.d.now();
     const amount = effectiveAmountCents(order.request);
     // Re-check caps at payment time unless a family member released it by passkey.
@@ -81,6 +89,9 @@ export class MoneyService {
       label: order.request.payeeDescription,
     }]);
     this.d.events.emit('order.paid', order);
+    if (order.fulfilment?.quoteId && this.d.delivery) {
+      void this.d.delivery.fulfil(order, amount).catch(() => this.d.log?.(`Delivery dispatch failed for ${order.id}; payment remains paid`));
+    }
     return order;
   }
 
@@ -103,7 +114,7 @@ export class MoneyService {
       throw new ApiError(403, 'NOT_A_MEMBER', 'Only circle members can resolve holds');
     }
 
-    if (b.decision === 'release' && order.fraud.risk === 'high') {
+    if (b.decision === 'release' && (order.fraud.hardStop || order.fraud.risk === 'high')) {
       if (b.method !== 'passkey_web') {
         throw new ApiError(403, 'PASSKEY_REQUIRED', 'Releasing a high-risk hold requires a passkey');
       }
@@ -150,6 +161,40 @@ export class MoneyService {
     const circle = await this.d.family.getCircle(seniorId);
     const spent = spentThisMonth(await loadLedger(this.d.store, seniorId, now), now, circle.senior.tz);
     return { ...cred, spentThisMonthCents: spent, remainingThisMonthCents: Math.max(0, cred.monthlyCapCents - spent) };
+  }
+
+  async reset() {
+    await this.d.store.reset(generateHistory(this.d.now()));
+    return { ok: true };
+  }
+
+  async deliveryStatus(body: unknown): Promise<Order> {
+    const b = (body ?? {}) as Record<string, unknown>;
+    const statuses = ['cart_ready', 'dry_run_complete', 'awaiting_live_checkout', 'placed', 'picked_up', 'delivered', 'failed'];
+    if (typeof b.orderId !== 'string' || typeof b.deliveryId !== 'string' || !b.deliveryId ||
+        typeof b.status !== 'string' || !statuses.includes(b.status) ||
+        ['etaText', 'trackingUrl', 'failureReason'].some(k => b[k] !== undefined && typeof b[k] !== 'string')) {
+      throw new ApiError(400, 'BAD_REQUEST', 'Invalid delivery status event');
+    }
+    const order = await this.getOrder(b.orderId);
+    if (order.status !== 'paid' || !order.fulfilment?.quoteId) {
+      throw new ApiError(409, 'DELIVERY_NOT_EXPECTED', 'Delivery requires a paid, quoted order');
+    }
+    const previous = order.fulfilment.delivery;
+    if (previous && previous.deliveryId !== b.deliveryId) throw new ApiError(409, 'DELIVERY_MISMATCH', 'Delivery ID differs');
+    // Duplicate or out-of-order callbacks must not move a delivery backwards.
+    if (previous && (previous.status === 'delivered' || previous.status === 'failed' ||
+        statuses.indexOf(b.status) < statuses.indexOf(previous.status))) return order;
+    order.fulfilment.delivery = { ...previous, deliveryId: b.deliveryId, status: b.status as DeliveryStatus['status'],
+      ...Object.fromEntries(['etaText', 'trackingUrl', 'failureReason'].filter(k => b[k] !== undefined).map(k => [k, b[k]])) };
+    await this.d.store.saveOrder(order);
+    return order;
+  }
+
+  async getOrder(orderId: string): Promise<Order> {
+    const order = await this.d.store.getOrder(orderId);
+    if (!order) throw new ApiError(404, 'ORDER_NOT_FOUND', `No order ${orderId}`);
+    return order;
   }
 
   listOrders(seniorId: string) { return this.d.store.listOrders(seniorId); }

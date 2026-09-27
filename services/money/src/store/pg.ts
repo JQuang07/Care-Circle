@@ -21,6 +21,21 @@ export class PgStore implements Store {
   private pool: pg.Pool;
   constructor(url: string) { this.pool = new pg.Pool({ connectionString: url }); }
   async init() { await this.pool.query(DDL); }
+  async reset(seed: LedgerEntry[]) {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('TRUNCATE money.orders, money.holds, money.ledger');
+      for (const e of seed) {
+        await client.query(`INSERT INTO money.ledger (id, senior_id, at, merchant_id, category, amount_cents, label)
+          VALUES ($1,$2,$3,$4,$5,$6,$7)`, [e.id, e.seniorId, e.at, e.merchantId ?? null, e.category, e.amountCents, e.label ?? null]);
+      }
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally { client.release(); }
+  }
   async close() { await this.pool.end(); }
 
   async addLedger(entries: LedgerEntry[]) {

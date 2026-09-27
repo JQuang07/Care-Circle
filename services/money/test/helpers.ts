@@ -1,3 +1,4 @@
+import type { DeliveryClient } from '../src/delivery';
 import type { OrderRequest } from '../src/contracts';
 import { buildService } from '../src/deps';
 import { RecordingEvents } from '../src/events';
@@ -9,14 +10,14 @@ import { MemoryStore } from '../src/store/store';
 
 export const NOW = new Date('2026-11-18T19:00:00Z'); // Wed 2pm ET
 
-export async function setup(opts: { llm?: Llm | null; mock?: boolean } = {}) {
+export async function setup(opts: { delivery?: DeliveryClient; llm?: Llm | null; mock?: boolean } = {}) {
   let now = NOW;
   const clock = { set: (d: Date) => { now = d; }, now: () => now };
   const store = new MemoryStore();
   await store.addLedger(generateHistory(NOW));
   const events = new RecordingEvents();
   const service = buildService({
-    store, family: seedFamilyClient(clock.now), payments: mockPayments, events,
+    delivery: opts.delivery, store, family: seedFamilyClient(clock.now), payments: mockPayments, events,
     llm: opts.llm ?? null, now: clock.now, mock: opts.mock,
   });
   return { store, events, service, clock };

@@ -1,5 +1,6 @@
-// Copied from CONTRACTS.md §2–§3. When Agent 4 publishes packages/contracts,
-// replace this file's body with: export * from '@care-circle/contracts';
+// CONTRACTS.md §2–§3 plus D6/D14 addendum. main's shared package still lacks
+// these additions. Replace shared shapes with @care-circle/contracts imports
+// when the updated package lands; keep Circle/Credential internal types local.
 
 export type OrderType = 'groceries' | 'ride' | 'gift' | 'pharmacy_refill' | 'other';
 
@@ -40,6 +41,7 @@ export interface FraudAssessment {
 export interface Order {
   id: string; seniorId: string; request: OrderRequest;
   status: 'draft' | 'approved' | 'held' | 'cancelled' | 'paid';
+  fulfilment?: Fulfilment;
   fraud: FraudAssessment; holdId?: string; receiptUrl?: string; createdAt: string;
 }
 
@@ -57,7 +59,7 @@ export interface ContactRhythm {
   seniorId: string;
   perMember: {
     memberId: string; lastContactAt?: string; usualPattern?: string;
-    callsLast30d: number; everAskedForMoney: false;
+    callsLast30d: number; everAskedForMoney: boolean;
   }[];
 }
 
@@ -72,4 +74,14 @@ export interface Circle { senior: Senior; members: Member[] }
 export interface Credential {
   seniorId: string; perPurchaseCapCents: number; monthlyCapCents: number;
   blockedCategories: string[]; fundedBy: string[];
+}
+
+export interface DeliveryStatus {
+  deliveryId: string;
+  status: 'cart_ready' | 'dry_run_complete' | 'awaiting_live_checkout' | 'placed' | 'picked_up' | 'delivered' | 'failed';
+  etaText?: string; trackingUrl?: string; failureReason?: string;
+}
+export interface Fulfilment {
+  provider: 'mock' | 'doordash_thirdparty'; storeName: string; quoteId?: string;
+  unmatchedItems?: string[]; delivery?: DeliveryStatus;
 }

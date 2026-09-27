@@ -39,11 +39,20 @@ export function buildApp(o: AppOptions): FastifyInstance {
 
   app.get('/health', async () => ({ ok: true, service: 'money', mock: o.mock }));
 
+  app.post('/demo/reset', async () => {
+    if (!o.secret) throw new ApiError(503, 'SECRET_REQUIRED', 'Configure the internal secret');
+    return o.service.reset();
+  });
+  app.post('/webhooks/delivery-status', async (req) => {
+    if (!o.secret) throw new ApiError(503, 'SECRET_REQUIRED', 'Configure the internal secret');
+    return o.service.deliveryStatus(req.body);
+  });
   app.post('/fraud/assess', async (req) => o.service.assess(parseOrderRequest(req.body)));
   app.post('/orders/draft', async (req) => o.service.draft(parseOrderRequest(req.body)));
   app.post<{ Params: { id: string } }>('/orders/:id/confirm', async (req) => o.service.confirm(req.params.id));
   app.post<{ Params: { id: string } }>('/holds/:id/resolve', async (req) => o.service.resolveHold(req.params.id, req.body));
   app.get('/holds', async (req) => o.service.listHolds(seniorQuery(req.query)));
+  app.get<{ Params: { id: string } }>('/orders/:id', async (req) => o.service.getOrder(req.params.id));
   app.get('/orders', async (req) => o.service.listOrders(seniorQuery(req.query)));
   app.get<{ Params: { seniorId: string } }>('/credentials/:seniorId', async (req) => o.service.credentials(req.params.seniorId));
 

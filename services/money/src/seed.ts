@@ -32,7 +32,7 @@ export const SEED_CREDENTIAL: Credential = {
   fundedBy: ['mem_lisa', 'mem_mark'],
 };
 
-/** Fallback contact rhythm (used in MOCK and if family is unreachable). Relative to `now`. */
+/** Fallback contact rhythm (used with mock dependencies or if family is unreachable). Relative to `now`. */
 export function seedContactRhythm(now: Date): ContactRhythm {
   const lastSunday = new Date(now);
   lastSunday.setUTCDate(now.getUTCDate() - ((now.getUTCDay() + 7) % 7 || 7));
