@@ -50,6 +50,9 @@ export class DoorDashMcpProvider implements Provider {
   private lastStatus?: { connected: boolean; loggedIn?: boolean; detail?: string; at: number };
   private probing?: Promise<{ connected: boolean; loggedIn?: boolean; detail?: string }>;
   static readonly STATUS_TTL_MS = 60_000;
+  static readonly AUTH_REUSE_MS = 5 * 60_000;
+  static readonly STORE_TTL_MS = 30 * 60_000;
+  private stores = new Map<string, Store & { at: number }>();
 
   private async call(name: string, args: Record<string, unknown> = {}): Promise<any> {
     const res: any = await this.tools.call(name, args);
@@ -68,11 +71,18 @@ export class DoorDashMcpProvider implements Provider {
       }
       this.checkedTools = true;
     }
+    // Each auth check is ~10-20 s of browser time; a recent "logged in" is good enough.
+    const recent = this.lastStatus?.loggedIn && Date.now() - this.lastStatus.at < DoorDashMcpProvider.AUTH_REUSE_MS;
+    if (recent) return this.setAddressOnce();
     const auth = await this.call("doordash_auth_check");
     this.lastStatus = { connected: true, loggedIn: Boolean(auth?.isLoggedIn), detail: auth?.isLoggedIn ? "logged in" : "not logged in", at: Date.now() };
     if (!auth?.isLoggedIn) {
       throw new ProviderError("DOORDASH_NOT_LOGGED_IN", "DoorDash session is not logged in. Run `npm run login` in the MCP server folder, then restart it.");
     }
+    await this.setAddressOnce();
+  }
+
+  private async setAddressOnce() {
     if (this.opts.dropoffAddress && !this.addressSet) {
       await this.call("doordash_set_address", { address: this.opts.dropoffAddress });
       this.addressSet = true;
@@ -117,11 +127,16 @@ export class DoorDashMcpProvider implements Provider {
     return this.run(async () => {
       await this.ready();
       const query = hint?.trim() || (kind === "grocery" ? this.opts.defaultGroceryStore : "dinner");
+      const key = `${kind}:${query.toLowerCase()}`;
+      const cached = this.stores.get(key);
+      if (cached && Date.now() - cached.at < DoorDashMcpProvider.STORE_TTL_MS) return { id: cached.id, name: cached.name } satisfies Store;
       const res = await this.call("doordash_search", { query });
       const list: any[] = Array.isArray(res?.restaurants) ? res.restaurants : [];
       const first = list.find((r) => r?.id && r?.name);
       if (!first) throw new ProviderError("NO_STORE", `DoorDash search for "${query}" returned no stores near the delivery address`);
-      return { id: String(first.id), name: String(first.name) } satisfies Store;
+      const store = { id: String(first.id), name: String(first.name) } satisfies Store;
+      this.stores.set(key, { ...store, at: Date.now() });
+      return store;
     });
   }
 

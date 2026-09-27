@@ -97,6 +97,24 @@ describe("delivery · orders (money-gated)", () => {
     expect(r.json().failureReason).toMatch(/hard cap/);
   });
 
+  it("dry run: a broken cart build finishes on quote prices; live mode still fails", async () => {
+    class Flaky extends MockProvider { async buildCart(): Promise<never> { throw new Error("locator.waitFor: Timeout 10000ms exceeded"); } }
+    const dry = setup({ provider: new Flaky() });
+    const q = (await dry.app.inject({ method: "POST", url: "/quote", headers: H, payload: groceries })).json();
+    const r = (await order(dry.app, q.quoteId)).json();
+    expect(r).toMatchObject({ status: "dry_run_complete", cartTotalCents: q.totalCents });
+    expect(r.cartNote).toMatch(/Timeout/);
+    expect(dry.events.some((e) => e.status === "failed")).toBe(false);
+
+    const over = setup({ provider: new Flaky(), cfg: { maxOrderCents: 1000, tolerancePct: 1000 } });
+    const q2 = (await over.app.inject({ method: "POST", url: "/quote", headers: H, payload: groceries })).json();
+    expect((await order(over.app, q2.quoteId)).json()).toMatchObject({ status: "failed", failureReason: expect.stringMatching(/hard cap/) });
+
+    const live = setup({ provider: new Flaky(), cfg: { provider: "doordash_thirdparty", liveCheckout: true } });
+    const q3 = (await live.app.inject({ method: "POST", url: "/quote", headers: H, payload: groceries })).json();
+    expect((await order(live.app, q3.quoteId)).json()).toMatchObject({ status: "failed", failureReason: expect.stringMatching(/Timeout/) });
+  });
+
   it("is idempotent per money order", async () => {
     const { app } = setup();
     const q = (await app.inject({ method: "POST", url: "/quote", headers: H, payload: groceries })).json();

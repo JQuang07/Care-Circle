@@ -29,5 +29,7 @@ export interface DeliveryOrder {
   storeName: string;
   externalOrderId?: string; trackingUrl?: string; etaUtc?: string; etaText?: string;
   failureReason?: string; confirmedBy?: string;
+  /** Dry run only: why the DoorDash cart itself wasn't built (the dry run finished on quote prices). */
+  cartNote?: string;
   createdAt: string; updatedAt: string;
 }

@@ -130,7 +130,18 @@ export class DeliveryService {
       if (total > ceiling) return this.fail(d, `Cart total $${(total / 100).toFixed(2)} is above the approved $${(approved / 100).toFixed(2)} (+${this.cfg.tolerancePct}%)`);
       if (total > this.cfg.maxOrderCents) return this.fail(d, `Cart total $${(total / 100).toFixed(2)} is above the hard cap $${(this.cfg.maxOrderCents / 100).toFixed(2)}`);
     } catch (e) {
-      return this.fail(d, e instanceof Error ? e.message : String(e));
+      const reason = e instanceof Error ? e.message : String(e);
+      if (this.cfg.liveCheckout) return this.fail(d, reason);
+      // Dry run: nothing is ever bought, so a flaky browser step (DoorDash's page changed, a
+      // selector timed out) shouldn't reach the family as "didn't go through". Finish the dry
+      // run on the quote's DoorDash prices; the amount gates still apply to that total.
+      this.log(`delivery ${d.deliveryId}: cart build failed in dry run, completing on quote prices: ${reason}`);
+      const total = quote.totalCents;
+      const ceiling = Math.floor(approved * (1 + this.cfg.tolerancePct / 100));
+      if (total > ceiling) return this.fail(d, `Quote total $${(total / 100).toFixed(2)} is above the approved $${(approved / 100).toFixed(2)} (+${this.cfg.tolerancePct}%)`);
+      if (total > this.cfg.maxOrderCents) return this.fail(d, `Quote total $${(total / 100).toFixed(2)} is above the hard cap $${(this.cfg.maxOrderCents / 100).toFixed(2)}`);
+      d.cartTotalCents = total;
+      d.cartNote = `Cart not built on DoorDash (${reason.split("\n")[0]!.slice(0, 160)}); dry run completed on quote prices.`;
     }
     return this.setStatus(d, this.cfg.liveCheckout ? "awaiting_live_checkout" : "dry_run_complete");
   }
