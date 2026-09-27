@@ -26,13 +26,13 @@ export function ttsKey(c: Config): string | undefined {
 
 const mp3Cache = new Map<string, Buffer>();
 /** Care Circle's voice for the browser (stage): Deepgram Aura-2 as MP3. Repeated lines come from memory. */
-export async function speakMp3(c: Config, text: string): Promise<Buffer> {
+export async function speakMp3(c: Config, text: string, model = c.ttsModel): Promise<Buffer> {
   const key = ttsKey(c);
   if (!key) throw new Error("No TTS key (DEEPGRAM_API_KEY)");
-  const cacheKey = `${c.ttsModel}|${text}`;
+  const cacheKey = `${model}|${text}`;
   const hit = mp3Cache.get(cacheKey);
   if (hit) return hit;
-  const query = new URLSearchParams({ model: c.ttsModel, encoding: "mp3" });
+  const query = new URLSearchParams({ model, encoding: "mp3" });
   const response = await fetch(`https://api.deepgram.com/v1/speak?${query}`, {
     method: "POST",
     headers: { Authorization: `Token ${key}`, "Content-Type": "application/json" },

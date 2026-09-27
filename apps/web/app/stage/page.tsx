@@ -112,21 +112,25 @@ async function toWav(blob: Blob): Promise<Blob> {
 }
 
 /** Care Circle's voice: Deepgram Aura-2 MP3 via voice /demo/speak, fetched once per line. */
+type Voice = "care" | "rose";
 const voiceClips = new Map<string, Promise<string | undefined>>();
-function fetchVoice(text: string): Promise<string | undefined> {
-  let clip = voiceClips.get(text);
+function fetchVoice(text: string, voice: Voice = "care"): Promise<string | undefined> {
+  const key = `${voice}|${text}`;
+  let clip = voiceClips.get(key);
   if (!clip) {
     clip = fetch("/api/stage/speak", {
-      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text }),
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text, voice }),
       signal: AbortSignal.timeout(6000),
     })
       .then(async (r) => (r.ok && r.headers.get("content-type")?.includes("audio") ? URL.createObjectURL(await r.blob()) : undefined))
       .catch(() => undefined);
-    voiceClips.set(text, clip);
-    void clip.then((url) => { if (!url) voiceClips.delete(text); }); // retry a failed line next time
+    voiceClips.set(key, clip);
+    void clip.then((url) => { if (!url) voiceClips.delete(key); }); // retry a failed line next time
   }
   return clip;
 }
+/** Rose's typed lines: the same aged voice as her clips (demo-audio/make-rose-voice.mjs), slowed ~7%. */
+const ROSE_RATE = 0.93;
 let playing: HTMLAudioElement | undefined;
 
 /** Spoken while a slow turn (a live DoorDash quote) runs. */
@@ -135,16 +139,17 @@ const HOLD_LINES = {
   other: { wait: "One moment, Rose. Let me check on that for you.", almost: "Almost done, Rose." },
 };
 
-async function speak(text: string, member?: boolean): Promise<void> {
+async function speak(text: string, member?: boolean, voice: Voice = "care"): Promise<void> {
   if (typeof window === "undefined" || !text) return;
-  const url = await fetchVoice(text);
+  const url = await fetchVoice(text, voice);
   if (url) {
     const ok = await new Promise<boolean>((done) => {
       playing?.pause();
       speechSynthesis?.cancel();
       const audio = (playing = new Audio(url));
+      if (voice === "rose") { audio.preservesPitch = false; audio.playbackRate = ROSE_RATE; }
       // Never block the demo on a missing "ended" event.
-      const timer = setTimeout(() => done(true), 3000 + text.length * 90);
+      const timer = setTimeout(() => done(true), 3000 + text.length * 100);
       audio.onended = () => { clearTimeout(timer); done(true); };
       audio.onerror = () => { clearTimeout(timer); done(false); };
       audio.play().catch(() => { clearTimeout(timer); done(false); });
@@ -430,9 +435,13 @@ export default function Stage() {
     const text = typed.trim();
     if (!text || busy) return;
     setBusy("typed"); setTyped("");
-    const r = await svc<any>("voice", "/demo/converse", { method: "POST", body: { sessionId, seniorId: "sen_rose", text } });
+    const req = svc<any>("voice", "/demo/converse", { method: "POST", body: { sessionId, seniorId: "sen_rose", text } });
+    heard("Rose", text);
+    await speak(text, false, "rose"); // Rose says it aloud while the turn runs
+    const stopHold = holdOn(req, false);
+    const r = await req.finally(stopHold);
     if (r.ok) await handle({ ...r.data, transcript: text, transcribedBy: "typed" }, "Rose", false);
-    else setStatus(explain(r));
+    else { unheard(); setStatus(explain(r)); }
     setBusy(undefined);
   };
 

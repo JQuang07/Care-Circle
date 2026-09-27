@@ -9,14 +9,14 @@ import { serviceBaseUrl } from "@/lib/services";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
-  const { text } = (await req.json().catch(() => ({}))) as { text?: unknown };
+  const { text, voice } = (await req.json().catch(() => ({}))) as { text?: unknown; voice?: unknown };
   if (typeof text !== "string" || !text.trim() || text.length > 1000)
     return NextResponse.json({ error: { code: "BAD_REQUEST", message: "text (1–1000 chars) is required" } }, { status: 400 });
   try {
     const upstream = await fetch(`${serviceBaseUrl("voice")}/demo/speak`, {
       method: "POST",
       headers: { "x-cc-secret": process.env.CC_INTERNAL_SECRET ?? "", "content-type": "application/json" },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text, voice: voice === "rose" ? "rose" : "care" }),
       cache: "no-store",
       signal: AbortSignal.timeout(10_000),
     });

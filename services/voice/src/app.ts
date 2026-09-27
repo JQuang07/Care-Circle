@@ -187,13 +187,17 @@ export async function createApp(
     return { callId: s.callId };
   });
   await registerConverse(app, c, engine, store, deps, reasoner);
-  // Care Circle's own voice for the stage page (one AI voice; never a family member's).
+  // Stage page speech: Care Circle's own voice, or "rose" to voice the demo senior's typed
+  // lines (a fictional persona; the stage labels it). Never a family member's voice (rule 5).
   app.post("/demo/speak", async (request, reply) => {
     assert(c.mock, "DEMO_DISABLED", "Demo speech is available only in MOCK=1.", 403);
-    const { text } = z.object({ text: z.string().trim().min(1).max(1000) }).parse(request.body);
+    const { text, voice } = z
+      .object({ text: z.string().trim().min(1).max(1000), voice: z.enum(["care", "rose"]).default("care") })
+      .parse(request.body);
     assert(ttsKey(c), "TTS_UNAVAILABLE", "No DEEPGRAM_API_KEY; the stage falls back to the browser voice.", 503);
+    const model = voice === "rose" ? process.env.ROSE_TTS_MODEL || "aura-2-athena-en" : c.ttsModel;
     try {
-      return reply.type("audio/mpeg").header("cache-control", "no-store").send(await speakMp3(c, text));
+      return reply.type("audio/mpeg").header("cache-control", "no-store").send(await speakMp3(c, text, model));
     } catch (e) {
       throw new ApiError(502, "TTS_UNAVAILABLE", (e as Error).message);
     }
