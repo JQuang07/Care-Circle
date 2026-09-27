@@ -4,6 +4,9 @@ import { ProviderError, type CartResult, type Provider, type Store, type TrackSt
 
 const $ = (d: number) => Math.round(d * 100);
 
+// What FreshMart hands you when Rose just says "milk" or "bread".
+const STAPLES = new Set(["Whole Milk, 1 gal", "Whole Wheat Bread"]);
+
 const GROCERY: Priced[] = [
   ["Whole Milk, 1 gal", 4.29], ["2% Reduced Fat Milk, 1 gal", 4.19], ["Oat Milk, 64 oz", 4.99],
   ["Whole Wheat Bread", 3.49], ["Seeded Multigrain Bread", 4.29], ["White Sandwich Bread", 2.99],
@@ -18,7 +21,7 @@ const GROCERY: Priced[] = [
   ["Spaghetti, 1 lb", 1.49], ["Marinara Sauce", 2.99], ["Peanut Butter", 3.49],
   ["Strawberry Jam", 3.29], ["Honey", 5.99], ["Sugar, 4 lb", 3.49],
   ["All-Purpose Flour, 5 lb", 3.99], ["Apple Gift Card $50", 50], ["Target Gift Card $100", 100],
-].map(([name, price]) => ({ name: name as string, priceCents: $(price as number) }));
+].map(([name, price]) => ({ name: name as string, priceCents: $(price as number), ...(STAPLES.has(name as string) && { staple: true }) }));
 
 const RESTAURANTS: { store: Store; menu: Priced[] }[] = [
   { store: { id: "mock_harvest_table", name: "Harvest Table (demo)" },
