@@ -172,6 +172,92 @@ export async function createApp(
     }
     return { callId: s.callId };
   });
+  app.get("/demo/calls", async (request) => {
+    const { seniorId } = z.object({ seniorId: id("sen") }).parse(request.query);
+    return [...store.sessions.values()]
+      .filter((s) => s.seniorId === seniorId)
+      .map(({ callId, kind, purpose, scheduledCallId, startedAt }) => ({
+        callId,
+        kind,
+        purpose,
+        scheduledCallId,
+        startedAt,
+      }));
+  });
+  app.post("/demo/reset", async () => {
+    assert(c.mock, "DEMO_DISABLED", "Reset is available only in MOCK=1.", 403);
+    assert(!ticking, "RESET_BUSY", "Wait for pending dispatch to finish.");
+    await store.reset();
+    return { ok: true };
+  });
+  app.post("/demo/simulate-verification", async (request) => {
+    assert(
+      c.mock,
+      "DEMO_DISABLED",
+      "Text simulation is available only in MOCK=1.",
+      403,
+    );
+    const body = z
+      .object({
+        seniorId: id("sen"),
+        holdId: id("hold"),
+        memberId: id("mem"),
+        script: z
+          .array(
+            z
+              .object({
+                speaker: z.enum(["senior", "member"]),
+                text: z.string().min(1).max(4000),
+              })
+              .strict(),
+          )
+          .min(1)
+          .max(50),
+      })
+      .strict()
+      .parse(request.body);
+    await engine.verificationContext(body.seniorId, body.holdId, body.memberId);
+    const parent = await engine.create(body.seniorId);
+    let verifier: typeof parent | undefined;
+    try {
+      const { callId } = await phone.verify(parent, body.holdId, body.memberId);
+      verifier = store.sessions.get(callId)!;
+      for (const line of body.script) {
+        if (line.speaker === "senior") {
+          engine.add(verifier, "senior", line.text);
+          continue; // A senior's words can never authorize the member's decision.
+        }
+        engine.add(verifier, body.memberId, line.text);
+        const v = verifier.verification!;
+        if (affirmative(line.text) && v.decision) {
+          await engine.resolveVerifier(verifier, v.decision);
+          await engine.say(verifier, "Your decision is recorded.");
+          break;
+        }
+        v.decision =
+          /^(please )?cancel( it| the (held )?(order|purchase))?[.!\s]*$/i.test(
+            line.text,
+          )
+            ? "cancel"
+            : /^(please )?release( it| the (held )?(order|purchase))?[.!\s]*$/i.test(
+                  line.text,
+                )
+              ? "release"
+              : undefined;
+        await engine.say(
+          verifier,
+          v.decision
+            ? `You want to ${v.decision} the held order. Is that right?`
+            : "Please say cancel or release, then confirm your decision.",
+        );
+      }
+      return { callId };
+    } finally {
+      if (verifier) await engine.end(verifier);
+      await engine.end(parent);
+      await engine.flush();
+    }
+  });
   app.get("/demo/calls/:callId", async (request) => {
     assert(
       c.mock,
@@ -200,7 +286,10 @@ export async function createApp(
   );
   app.post("/webhooks/scheduled-call-due", async (request) => {
     const call = scheduledCall.parse(request.body);
-    await store.enqueue(`due:${call.id}`, call);
+    const phase =
+      call.phase ??
+      z.enum(["reminder", "due"]).parse(request.headers["x-cc-phase"] ?? "due");
+    await store.enqueue(`due:${call.id}:${phase}`, { ...call, phase });
     return { ok: true };
   });
   app.post("/twilio/voice", async (request, reply) => {
@@ -384,7 +473,8 @@ export async function createApp(
           const call = scheduledCall.parse(job.payload);
           await phone.outbound({
             seniorId: call.seniorId,
-            purpose: "scheduled_family_call",
+            purpose:
+              call.phase === "reminder" ? "reminder" : "scheduled_family_call",
             scheduledCallId: call.id,
             roomName: call.roomName,
           });
