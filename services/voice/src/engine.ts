@@ -275,6 +275,12 @@ export class Engine {
     const results: { name: string; result: unknown }[] = [];
     for (let step = 0; step < 5; step++) {
       const decision = await this.reasoner.next(s, results, held);
+      // A model rereading an old "keep this between us" must not restart a span she just
+      // ended ("Anyway, …") or one already open; the regex above owns privacy markers.
+      decision.actions = decision.actions.filter(
+        (a) =>
+          a.name !== "mark_private" || (!s.privateStart && !privateEnds(text)),
+      );
       if (!decision.actions.length) {
         if (held && step === 0) {
           s.pending = held; // fresh playback required: pendingDelivered stays false

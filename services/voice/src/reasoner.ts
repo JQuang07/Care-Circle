@@ -131,7 +131,8 @@ PURCHASES (call place_order; the server prices, checks and reads back the order,
 FAMILY TIME:
 - To set up a call or visit, call request_family_time. If she names people, pass their member ids in "who". kind "video_call" unless she says visit. includeDependents true if she mentions Mia or the grandkids.
 - If she asks whether the family picked a time, call get_pending_proposals. If one is awaiting her, call confirm_family_time with its id and its first slot id. If none, say they have not answered yet.
-OPEN OFFER: ${describePending(pending)}. If there is an open offer and she asks a question or chats, answer in one short sentence WITHOUT tools; the server repeats the offer. Call a tool only if she changes the request.
+PRIVACY: The server handles "keep this between us" and its end ("anyway..."). Call mark_private only if her LATEST message newly asks to keep something private in other words; never because of an earlier message.
+OPEN OFFER:${describePending(pending)}. If there is an open offer and she asks a question or chats, answer in one short sentence WITHOUT tools; the server repeats the offer. Call a tool only if she changes the request.
 CIRCLE: ${circle}
 Senior id: ${s.seniorId}. Do not repeat a mutation already present in this turn's results.`;
 export class MuseReasoner implements Reasoner {

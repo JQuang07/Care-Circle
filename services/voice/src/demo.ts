@@ -24,7 +24,19 @@ import {
   type Session,
 } from "./types.js";
 
-export type DemoEvent = { type: string; summary: string; data?: unknown };
+/**
+ * The verifier asks to cancel. Only a negated "cancel" blocks it, so "That wasn't me,
+ * please cancel it. Don't buy any gift cards." still cancels. Cancel is the safe direction
+ * and needs no passkey (D8); a release still needs its own confirmation.
+ */
+export const wantsCancel = (text: string) => {
+  const lower = text.toLowerCase().replace(/[’]/g, "'");
+  return (
+    /\bcancel\b/.test(lower) &&
+    !/\b(don't|do not|not|never|shouldn't|no need to)\s+(\w+\s+)?cancel/.test(lower)
+  );
+};
+export type DemoEvent ={ type: string; summary: string; data?: unknown };
 const $ = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
 /** Wraps dependencies so a demo turn can report what it changed in the other services. */
@@ -142,6 +154,18 @@ export class EventRecorder implements Dependencies {
 export function makeReasoner(c: Config, deps: Dependencies): Reasoner {
   if (c.reasoner !== "muse" || !c.metaKey) return new MockReasoner();
   const cache = new Map<string, { at: number; text: string }>();
+  // "My usual groceries" comes from her real order history, never from the model.
+  const usual = async (seniorId: string) => {
+    const orders = await deps
+      .call<Order[]>("money", "GET", `/orders?seniorId=${seniorId}`)
+      .catch(() => [] as Order[]);
+    const last = orders
+      .filter((o) => o.request.type === "groceries" && o.status === "paid")
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+    return last
+      ? ` Her usual groceries (last paid grocery order): ${last.request.items.map((i) => `${i.qty} ${i.name}`).join(", ")}. Use these items when she asks for her usual groceries.`
+      : "";
+  };
   const describe = async (seniorId: string) => {
     const hit = cache.get(seniorId);
     if (hit && Date.now() - hit.at < 60_000) return hit.text;
@@ -154,7 +178,8 @@ export function makeReasoner(c: Config, deps: Dependencies): Reasoner {
             `${m.name} (${m.id}${m.isVerifier ? ", verifier" : ""}${m.dependents?.length ? `; children: ${m.dependents.map((d) => `${d.name}, ${d.age}`).join("; ")}` : ""})`,
         )
         .join(", ") +
-      ".";
+      "." +
+      (await usual(seniorId));
     cache.set(seniorId, { at: Date.now(), text });
     return text;
   };
@@ -202,13 +227,7 @@ export async function registerConverse(
     const from = v.transcript.length;
     engine.add(v, memberId, text);
     const d = v.verification!;
-    const lower = text.toLowerCase().replace(/[’]/g, "'");
-    // Only a negated "cancel" blocks it ("that's not me, cancel it" still cancels).
-    const negated =
-      /\b(don't|do not|not|never|shouldn't|no need to)\s+(\w+\s+)?cancel/.test(
-        lower,
-      );
-    if (/\bcancel\b/.test(lower) && !negated) {
+    if (wantsCancel(text)) {
       // D8: cancelling is always allowed and needs no passkey; it is the safe direction.
       await engine.resolveVerifier(v, "cancel");
       await engine.say(v, "Thank you. The purchase is cancelled and nothing was paid.");

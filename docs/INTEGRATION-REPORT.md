@@ -52,3 +52,18 @@ Each teammate follows `docs/agents/COMMON-SETUP.md`, then their own file. Each f
 | Claire | `docs/agents/agent-4-integrator-web.md` | Save `CLAUDE.md` → `CLAUDE.local.md` **before pulling**; contracts package |
 
 **When all four finish their Part 1:** `pnpm health` shows 5 green, E2E 1–5 pass against the live services with delivery on mock, and a paid grocery order produces a DoorDash dry-run cart (or a mock one).
+
+## v3 · Demo MVP finish (`integration-v3`, one machine)
+Details and open issues: [`docs/FINISH-PROGRESS.md`](FINISH-PROGRESS.md). How to run it: README, "Run the demo".
+
+| Check | Result |
+|---|---|
+| `pnpm typecheck` (7 packages) | ✅ |
+| Unit tests | ✅ voice 55 · family 103 · money 132 (+1 skipped) · delivery 16 · contracts |
+| `pnpm demo:run all` (audio clips → Muse Voice Transcribe → Muse → tools) | ✅ 4/4: groceries paid and dry run, family call scheduled, scam hold cancelled by Danny, Mia's gift low risk and paid |
+| `/stage` in a headless browser | ✅ 4/4 scenarios reach their event cards, with the family phones live |
+| `pnpm e2e`, voice on Muse | 11/13: E2E 1–4 pass. E2E 5's script names no grocery items, so Muse asks instead of guessing |
+| `pnpm e2e`, `VOICE_REASONER=mock` | 12/13: E2E 2 fails only because the test used a second voice instance |
+| Real DoorDash cart | ❌ Not verified. The MCP server on :3100 rejects the `.env` token with 401. Restart it with the `.env` token (or update `.env`), then restart `pnpm dev` |
+
+Changes to other agents' services are logged in `status/AGENT-1.md` (voice) and `status/AGENT-4.md` (web).

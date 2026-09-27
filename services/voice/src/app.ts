@@ -15,7 +15,12 @@ import {
   type Dependencies,
 } from "./dependencies.js";
 import type { Reasoner } from "./reasoner.js";
-import { EventRecorder, makeReasoner, registerConverse } from "./demo.js";
+import {
+  EventRecorder,
+  makeReasoner,
+  registerConverse,
+  wantsCancel,
+} from "./demo.js";
 import { ApiError, assert, id, scheduledCall, type Circle } from "./types.js";
 import { media } from "./media.js";
 const outboundBody = z
@@ -238,6 +243,11 @@ export async function createApp(
         }
         engine.add(verifier, body.memberId, line.text);
         const v = verifier.verification!;
+        if (wantsCancel(line.text)) {
+          await engine.resolveVerifier(verifier, "cancel");
+          await engine.say(verifier, "Thank you. The purchase is cancelled.");
+          break;
+        }
         if (affirmative(line.text) && v.decision) {
           await engine.resolveVerifier(verifier, v.decision);
           await engine.say(verifier, "Your decision is recorded.");

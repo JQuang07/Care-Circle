@@ -521,8 +521,9 @@ test("D3 simulation binds member, uses verbal resolution and rejects high-risk r
     seniorId: "sen_rose",
     holdId: deps.holds[0]!.id,
     memberId: "mem_danny",
+    // The senior's words never decide on the verifier leg, even "cancel".
     script: [
-      { speaker: "member", text: "cancel" },
+      { speaker: "senior", text: "cancel" },
       { speaker: "senior", text: "yes" },
     ],
   };
