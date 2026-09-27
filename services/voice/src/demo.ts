@@ -1,6 +1,9 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { FastifyInstance } from "fastify";
 import multipart from "@fastify/multipart";
+import { writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { transcribe, type Audio } from "./stt.js";
 import { z } from "zod";
 import type { Config } from "./config.js";
@@ -300,6 +303,13 @@ export async function registerConverse(
     }
     assert(audio?.buffer.length, "AUDIO_REQUIRED", "Send the clip as the 'file' field.", 400);
     const t = await transcribe(c, audio!, fields.sidecar);
+    // Keep the last upload for diagnosis ("didn't catch that"): <tmp>/care-circle-last-audio.*
+    try {
+      const base = join(tmpdir(), "care-circle-last-audio");
+      writeFileSync(`${base}.${/wav/i.test(audio!.mimetype || audio!.filename || "") ? "wav" : "bin"}`, audio!.buffer);
+      writeFileSync(`${base}.json`, JSON.stringify({ at: new Date().toISOString(), bytes: audio!.buffer.length, filename: audio!.filename, mimetype: audio!.mimetype, ...t }, null, 1));
+    } catch { /* diagnostics only */ }
+    console.log(`[voice] audio-turn ${audio!.buffer.length} B → ${t.transcribedBy}: "${t.transcript.slice(0, 80)}"`);
     const base = converseBody.omit({ text: true }).parse({
       sessionId: fields.sessionId || undefined,
       seniorId: fields.seniorId,

@@ -92,6 +92,13 @@ async function toWav(blob: Blob): Promise<Blob> {
   src.connect(off.destination);
   src.start();
   const pcm = (await off.startRendering()).getChannelData(0);
+  // Quiet laptop mics: normalise the peak (up to 20×) so speech-to-text hears the words.
+  let peak = 0;
+  for (const v of pcm) peak = Math.max(peak, Math.abs(v));
+  if (peak > 0.002) {
+    const gain = Math.min(20, 0.9 / peak);
+    for (let i = 0; i < pcm.length; i++) pcm[i] = pcm[i]! * gain;
+  }
   const buf = new DataView(new ArrayBuffer(44 + pcm.length * 2));
   const str = (o: number, s: string) => [...s].forEach((ch, i) => buf.setUint8(o + i, ch.charCodeAt(0)));
   str(0, "RIFF"); buf.setUint32(4, 36 + pcm.length * 2, true); str(8, "WAVE"); str(12, "fmt ");
@@ -135,6 +142,21 @@ export default function Stage() {
   const [speakAs, setSpeakAs] = useState<"senior" | "mem_danny">("senior");
   const [mic, setMic] = useState<{ rec: MediaRecorder; started: number }>();
   const [elapsed, setElapsed] = useState(0);
+  // Input level (0–1) while recording, the loudest seen, and the chosen input device.
+  const [level, setLevel] = useState(0);
+  const loudest = useRef(0);
+  const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
+  const [deviceId, setDeviceId] = useState<string>("");
+  const refreshDevices = useCallback(async () => {
+    try {
+      const all = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "audioinput");
+      setDevices(all);
+    } catch { /* no device list: the default mic is used */ }
+  }, []);
+  useEffect(() => {
+    try { setDeviceId(localStorage.getItem("stage-mic") ?? ""); } catch { /* storage blocked */ }
+    void refreshDevices();
+  }, [refreshDevices]);
   useEffect(() => {
     if (!mic) return;
     const t = setInterval(() => {
@@ -232,7 +254,7 @@ export default function Stage() {
 
   /** Recorded speech → 16 kHz WAV → /api/stage/audio-turn (Muse Voice Transcribe, then Deepgram). */
   const sendRecording = async (blob: Blob, as: "senior" | "mem_danny", sid?: string) => {
-    if (blob.size < 2000) return setStatus("That was too short. Press the mic, speak, then press it again to send.");
+    if (blob.size < 1000) return setStatus("The recording came back empty. Try again, or pick another microphone.");
     setBusy("mic");
     try {
       const wav = await toWav(blob).catch(() => blob);
@@ -258,17 +280,42 @@ export default function Stage() {
       return setStatus("This browser can't record here. Open the demo at http://localhost:3000 in Chrome or Edge.");
     try {
       speechSynthesis?.cancel();
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 } });
-      const rec = new MediaRecorder(stream);
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { ...(deviceId ? { deviceId: { exact: deviceId } } : {}), echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
+      });
+      void refreshDevices(); // device names are only visible after permission
+      // Live level meter: shows at a glance whether this microphone hears anything.
+      const actx = new AudioContext();
+      const analyser = actx.createAnalyser();
+      analyser.fftSize = 1024;
+      actx.createMediaStreamSource(stream).connect(analyser);
+      const buf = new Float32Array(analyser.fftSize);
+      loudest.current = 0;
+      const meter = setInterval(() => {
+        analyser.getFloatTimeDomainData(buf);
+        let peak = 0;
+        for (const v of buf) peak = Math.max(peak, Math.abs(v));
+        loudest.current = Math.max(loudest.current, peak);
+        setLevel(Math.min(1, peak * 3));
+      }, 80);
+      const type = MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ? "audio/webm;codecs=opus" : "";
+      const rec = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
       const chunks: Blob[] = [];
-      const as = speakAs, sid = sessionId;
+      const as = speakAs, sid = sessionId, started = Date.now();
       rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
       rec.onstop = () => {
+        clearInterval(meter);
+        void actx.close();
         stream.getTracks().forEach((t) => t.stop());
         setMic(undefined);
+        setLevel(0);
+        if (Date.now() - started < 700)
+          return setStatus("That was very short. Press Speak, say the whole sentence, then press again to send.");
+        if (loudest.current < 0.01)
+          return setStatus("No sound reached this microphone. Pick another one in the list next to the button, or check it isn't muted.");
         void sendRecording(new Blob(chunks, { type: rec.mimeType || "audio/webm" }), as, sid);
       };
-      rec.start();
+      rec.start(250); // collect in slices so a stop never loses the tail
       setElapsed(0); setStatus(undefined);
       setMic({ rec, started: Date.now() });
     } catch (e) {
@@ -353,6 +400,26 @@ export default function Stage() {
                 </label>
               ))}
             </fieldset>
+            <div className="flex w-full flex-wrap items-center gap-3 text-[14px] text-heron">
+              <label className="flex min-w-0 items-center gap-2">
+                <span>Mic</span>
+                <select value={deviceId} disabled={!!mic}
+                  onChange={(e) => { setDeviceId(e.target.value); try { localStorage.setItem("stage-mic", e.target.value); } catch { /* storage blocked */ } }}
+                  className="max-w-[260px] truncate rounded-md border border-heron/40 bg-white px-2 py-1 text-ink">
+                  <option value="">System default</option>
+                  {devices.filter((d) => d.deviceId && d.deviceId !== "default").map((d, i) => (
+                    <option key={d.deviceId} value={d.deviceId}>{d.label || `Microphone ${i + 1}`}</option>
+                  ))}
+                </select>
+              </label>
+              <span className="flex items-center gap-2" aria-label={mic ? `Input level ${Math.round(level * 100)} percent` : undefined}>
+                <span>Level</span>
+                <span className="h-2.5 w-32 overflow-hidden rounded-full bg-mist">
+                  <span className={`block h-full rounded-full transition-[width] duration-75 ${level > 0.05 ? "bg-leaf" : "bg-heron/40"}`} style={{ width: `${Math.round(level * 100)}%` }} />
+                </span>
+                {mic && level < 0.02 && elapsed >= 2 && <span className="text-alarm">no sound yet</span>}
+              </span>
+            </div>
           </div>
 
           <div ref={log} id="rose-log" aria-live="polite" className="mt-4 max-h-[46vh] min-h-[220px] flex-1 space-y-2 overflow-y-auto rounded-xl bg-chat-wall p-3">
