@@ -59,4 +59,27 @@ describe("DoorDash MCP provider (tool mapping)", () => {
     const p = new DoorDashMcpProvider(fakeServer().caller, { defaultGroceryStore: "grocery" });
     expect((await p.track("dd_987")).status).toBe("picked_up");
   });
+
+  it("health polls never queue browser work behind (or ahead of) an order", async () => {
+    const { caller, calls } = fakeServer();
+    let release!: () => void;
+    const slow: ToolCaller = {
+      listTools: caller.listTools,
+      async call(name, args) {
+        if (name === "doordash_search") await new Promise<void>((r) => { release = r; });
+        return caller.call(name, args);
+      },
+    };
+    const p = new DoorDashMcpProvider(slow, { defaultGroceryStore: "grocery" });
+    const first = await p.status();
+    expect(first).toMatchObject({ connected: true, loggedIn: true });
+    const store = p.findStore("grocery");
+    await new Promise((r) => setTimeout(r, 0));
+    const authBefore = calls.filter((c) => c.name === "doordash_auth_check").length;
+    const polls = await Promise.all(Array.from({ length: 20 }, () => p.status()));
+    expect(polls.every((s) => s.connected && s.loggedIn)).toBe(true);
+    expect(calls.filter((c) => c.name === "doordash_auth_check").length).toBe(authBefore);
+    release();
+    expect(await store).toEqual({ id: "store_42", name: "Safeway" });
+  });
 });

@@ -41,10 +41,15 @@ export class DoorDashMcpProvider implements Provider {
 
   /** Every call runs one at a time: the server drives a single browser tab. */
   private run<T>(fn: () => Promise<T>): Promise<T> {
-    const next = this.queue.then(fn, fn);
+    this.pending++;
+    const next = this.queue.then(fn, fn).finally(() => { this.pending--; });
     this.queue = next.catch(() => undefined);
     return next;
   }
+  private pending = 0;
+  private lastStatus?: { connected: boolean; loggedIn?: boolean; detail?: string; at: number };
+  private probing?: Promise<{ connected: boolean; loggedIn?: boolean; detail?: string }>;
+  static readonly STATUS_TTL_MS = 60_000;
 
   private async call(name: string, args: Record<string, unknown> = {}): Promise<any> {
     const res: any = await this.tools.call(name, args);
@@ -64,6 +69,7 @@ export class DoorDashMcpProvider implements Provider {
       this.checkedTools = true;
     }
     const auth = await this.call("doordash_auth_check");
+    this.lastStatus = { connected: true, loggedIn: Boolean(auth?.isLoggedIn), detail: auth?.isLoggedIn ? "logged in" : "not logged in", at: Date.now() };
     if (!auth?.isLoggedIn) {
       throw new ProviderError("DOORDASH_NOT_LOGGED_IN", "DoorDash session is not logged in. Run `npm run login` in the MCP server folder, then restart it.");
     }
@@ -73,7 +79,27 @@ export class DoorDashMcpProvider implements Provider {
     }
   }
 
-  status() {
+  /**
+   * /health is polled every few seconds by web. A probe costs ~20 s of browser time, so it must
+   * never queue behind (or ahead of) a real order: answer from the last result, probe at most
+   * once at a time, and only when the browser is idle.
+   */
+  status(): Promise<{ connected: boolean; loggedIn?: boolean; detail?: string }> {
+    const last = this.lastStatus;
+    const view = (s: NonNullable<typeof last>, extra = "") => ({ connected: s.connected, loggedIn: s.loggedIn, detail: (s.detail ?? "") + extra });
+    if (this.pending > 0 && !this.probing) {
+      return Promise.resolve(last ? view(last, " (busy with a DoorDash order)") : { connected: true, detail: "busy with a DoorDash order" });
+    }
+    if (last && Date.now() - last.at < DoorDashMcpProvider.STATUS_TTL_MS) return Promise.resolve(view(last));
+    if (!this.probing) {
+      this.probing = this.probe()
+        .then((s) => { this.lastStatus = { ...s, at: Date.now() }; return s; })
+        .finally(() => { this.probing = undefined; });
+    }
+    return last ? Promise.resolve(view(last)) : this.probing;
+  }
+
+  private probe() {
     return this.run(async () => {
       try {
         const names = await this.tools.listTools();
