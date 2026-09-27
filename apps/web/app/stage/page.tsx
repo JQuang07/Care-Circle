@@ -129,8 +129,6 @@ function fetchVoice(text: string, voice: Voice = "care"): Promise<string | undef
   }
   return clip;
 }
-/** Rose's typed lines: the same aged voice as her clips (demo-audio/make-rose-voice.mjs), slowed ~7%. */
-const ROSE_RATE = 0.93;
 let playing: HTMLAudioElement | undefined;
 
 /** Spoken while a slow turn (a live DoorDash quote) runs. */
@@ -147,7 +145,6 @@ async function speak(text: string, member?: boolean, voice: Voice = "care"): Pro
       playing?.pause();
       speechSynthesis?.cancel();
       const audio = (playing = new Audio(url));
-      if (voice === "rose") { audio.preservesPitch = false; audio.playbackRate = ROSE_RATE; }
       // Never block the demo on a missing "ended" event.
       const timer = setTimeout(() => done(true), 3000 + text.length * 100);
       audio.onended = () => { clearTimeout(timer); done(true); };

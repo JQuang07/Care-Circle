@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
     });
     if (!upstream.ok)
       return new NextResponse(await upstream.text(), { status: upstream.status, headers: { "content-type": "application/json" } });
-    return new NextResponse(await upstream.arrayBuffer(), { headers: { "content-type": "audio/mpeg", "cache-control": "no-store" } });
+    return new NextResponse(await upstream.arrayBuffer(), { headers: { "content-type": upstream.headers.get("content-type") ?? "audio/mpeg", "cache-control": "no-store" } });
   } catch (e) {
     return NextResponse.json({ error: { code: "UPSTREAM_UNREACHABLE", message: `voice isn't answering (${(e as Error).name}).` } }, { status: 502 });
   }

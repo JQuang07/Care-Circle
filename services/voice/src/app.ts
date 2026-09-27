@@ -23,7 +23,7 @@ import {
 } from "./demo.js";
 import { ApiError, assert, id, scheduledCall, type Circle } from "./types.js";
 import { media } from "./media.js";
-import { speakMp3, ttsKey } from "./speech.js";
+import { speakMp3, speakRoseWav, ttsKey } from "./speech.js";
 const outboundBody = z
   .object({
     seniorId: id("sen"),
@@ -195,9 +195,9 @@ export async function createApp(
       .object({ text: z.string().trim().min(1).max(1000), voice: z.enum(["care", "rose"]).default("care") })
       .parse(request.body);
     assert(ttsKey(c), "TTS_UNAVAILABLE", "No DEEPGRAM_API_KEY; the stage falls back to the browser voice.", 503);
-    const model = voice === "rose" ? process.env.ROSE_TTS_MODEL || "aura-2-athena-en" : c.ttsModel;
     try {
-      return reply.type("audio/mpeg").header("cache-control", "no-store").send(await speakMp3(c, text, model));
+      if (voice === "rose") return reply.type("audio/wav").header("cache-control", "no-store").send(await speakRoseWav(c, text));
+      return reply.type("audio/mpeg").header("cache-control", "no-store").send(await speakMp3(c, text));
     } catch (e) {
       throw new ApiError(502, "TTS_UNAVAILABLE", (e as Error).message);
     }
