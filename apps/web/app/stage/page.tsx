@@ -27,7 +27,7 @@ const LABELS: Record<string, string> = {
 interface Clip { file: string; text: string; speaker?: string }
 interface Scenario { name: string; clips: Clip[] }
 interface DemoEvent { type: string; summary: string; data?: any }
-interface Turn { who: string; text: string; by?: string; kind: "in" | "out"; filler?: boolean }
+interface Turn { who: string; text: string; by?: string; kind: "in" | "out"; pending?: boolean }
 type Action = NonNullable<Message["actions"]>[number];
 
 const roseTime = (iso: string) =>
@@ -199,8 +199,12 @@ export default function Stage() {
     .map((id) => {
       const d = phones?.delivery.byOrderId[id];
       const store = (d?.storeName ?? ordersById[id]?.fulfilment?.storeName ?? "the store").replace(/\s*\(demo\)$/i, "");
-      if (!d || d.status === "cart_ready")
-        return { key: id, tone: "honey", title: `Building the ${store} cart…`, body: "DoorDash is finding each item in the store. This takes about a minute." };
+      if (!d || d.status === "cart_ready") {
+        const secs = d?.createdAt ? (Date.now() - Date.parse(d.createdAt)) / 1000 : 0;
+        return secs > 20
+          ? { key: id, tone: "honey", title: `Almost done: filling the ${store} cart…`, body: "DoorDash is adding the last items to the cart." }
+          : { key: id, tone: "honey", title: `Building the ${store} cart…`, body: "DoorDash is finding each item in the store. This takes about a minute." };
+      }
       if (d.status === "failed")
         return { key: id, tone: "alarm", title: "Delivery couldn't finish", body: d.failureReason ?? "See the delivery service log." };
       return {
@@ -239,26 +243,34 @@ export default function Stage() {
   const holdOn = (pending: Promise<unknown>, member: boolean) => {
     let settled = false;
     void pending.catch(() => undefined).finally(() => { settled = true; });
-    const t = setTimeout(() => {
+    const say = (text: string) => {
       if (settled || member) return;
-      const text = active === "groceries"
-        ? "One moment, Rose. I'm checking Kroger's prices on DoorDash for you."
-        : "One moment, Rose. Let me check on that for you.";
-      setTurns((ts) => [...ts, { who: "Care Circle", text, by: "while it works", kind: "out", filler: true }]);
+      setTurns((ts) => [...ts, { who: "Care Circle", text, by: "while it works", kind: "out" }]);
       void speak(text);
-    }, 1500);
-    return () => clearTimeout(t);
+    };
+    const groceries = active === "groceries";
+    const timers = [
+      setTimeout(() => say(groceries
+        ? "One moment, Rose. I'm checking Kroger's prices on DoorDash for you."
+        : "One moment, Rose. Let me check on that for you."), 1500),
+      setTimeout(() => say(groceries ? "Almost done. I've found most of your items." : "Almost done, Rose."), 30_000),
+    ];
+    return () => timers.forEach(clearTimeout);
   };
+
+  /** Rose's words show as soon as she has said them; the real transcript replaces them later. */
+  const heard = (who: string, text: string) =>
+    setTurns((t) => [...t, { who, text, by: "listening…", kind: "in", pending: true }]);
+  const unheard = () => setTurns((t) => t.filter((x) => !x.pending));
 
   const handle = async (r: any, who: string, member: boolean) => {
     setSessionId(r.sessionId);
     setTurns((t) => {
-      // A holding line was spoken while this turn ran: Rose's words go above it.
       const said: Turn = { who, text: r.transcript ?? "", by: HEARD_BY[r.transcribedBy] ?? r.transcribedBy, kind: "in" };
       const reply: Turn = { who: "Care Circle", text: r.reply, by: r.reasonedBy === "mock" ? "keyword fallback" : "Muse", kind: "out" };
-      const i = t.findIndex((x) => x.filler);
+      const i = t.findIndex((x) => x.pending);
       if (i < 0) return [...t, said, reply];
-      return [...t.slice(0, i), said, { ...t[i]!, filler: false }, ...t.slice(i + 1), reply];
+      return [...t.slice(0, i), said, ...t.slice(i + 1), reply];
     });
     setEvents((e) => [...e, ...(r.events ?? [])]);
     setTick((n) => n + 1);
@@ -283,12 +295,14 @@ export default function Stage() {
       // Transcribe while the clip plays; show the result once Rose has finished speaking.
       const pending = fetch("/api/stage/audio-turn", { method: "POST", body: form }).then(async (res) => ({ ok: res.ok, body: await res.json() }));
       await played;
+      heard(clip.speaker ? who(clip.speaker) : "Rose", clip.text);
       const stopHold = holdOn(pending, !!clip.speaker);
       const r = await pending.finally(stopHold);
       if (!r.ok) throw new Error(r.body?.error ? `${r.body.error.code}: ${r.body.error.message}` : "voice failed");
       await handle(r.body, clip.speaker ? who(clip.speaker) : "Rose", !!clip.speaker);
       setDone((d) => new Set(d).add(clip.file));
     } catch (e) {
+      unheard();
       setStatus((e as Error).message);
     } finally {
       setBusy(undefined);
@@ -307,12 +321,14 @@ export default function Stage() {
       if (sid) form.append("sessionId", sid);
       if (as !== "senior") form.append("speaker", as);
       const req = fetch("/api/stage/audio-turn", { method: "POST", body: form });
+      heard(as === "senior" ? "Rose" : who(as), "…");
       const stopHold = holdOn(req, as !== "senior");
       const res = await req.finally(stopHold);
       const body = await res.json();
       if (!res.ok) throw new Error(body?.error ? `${body.error.code}: ${body.error.message}` : "voice failed");
       await handle(body, as === "senior" ? "Rose" : who(as), as !== "senior");
     } catch (e) {
+      unheard();
       setStatus((e as Error).message);
     } finally {
       setBusy(undefined);
