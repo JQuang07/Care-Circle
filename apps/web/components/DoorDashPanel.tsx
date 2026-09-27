@@ -46,7 +46,7 @@ export function DoorDashPanel() {
   };
 
   return (
-    <section aria-labelledby="dd-h" className="mt-10 rounded-xl bg-white p-5">
+    <section aria-labelledby="dd-h" className="glass mt-10 rounded-2xl p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <h2 id="dd-h" className="text-xl font-bold">Groceries delivery (DoorDash)</h2>
         <p className="text-[14px] text-heron">
@@ -61,9 +61,9 @@ export function DoorDashPanel() {
       <form className="mt-4 flex flex-wrap items-end gap-3" onSubmit={(e) => { e.preventDefault(); getQuote(); }}>
         <label className="grow text-[14px]">
           <span className="block text-heron">Items (comma-separated)</span>
-          <input value={items} onChange={(e) => setItems(e.target.value)} className="mt-1 w-full rounded-lg border border-heron/40 px-3 py-2 text-[15px]" />
+          <input value={items} onChange={(e) => setItems(e.target.value)} className="mt-1 w-full glass-soft rounded-xl px-3 py-2 outline-none text-[15px]" />
         </label>
-        <button type="submit" disabled={busy} className="rounded-lg bg-ink px-4 py-2.5 text-[15px] font-bold text-white disabled:opacity-60">
+        <button type="submit" disabled={busy} className="glass-ink rounded-full px-5 py-2.5 text-[15px] font-bold disabled:opacity-60">
           {busy ? "Quoting…" : "Quote groceries (DoorDash)"}
         </button>
       </form>
@@ -128,18 +128,18 @@ function PlaceRealOrder({ delivery, onResult }: { delivery: DeliveryOrder; onRes
   };
 
   return (
-    <div className="mt-6 rounded-xl border-2 border-alarm p-4">
+    <div className="glass-tint mt-6 rounded-2xl p-4" style={{ "--tint": "var(--color-alarm)" } as React.CSSProperties}>
       <p className="text-[13px] font-bold uppercase tracking-wide text-alarm">Real order: this charges a real card</p>
       <p className="mt-1 text-[17px]"><b>{delivery.storeName}</b>, {usd(delivery.cartTotalCents)} <span className="text-[14px] text-heron">(approved {usd(delivery.approvedAmountCents)}, order {delivery.orderId})</span></p>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <label className="text-[14px]">
           <span className="block text-heron">Your name</span>
-          <input value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" className="mt-1 w-full rounded-lg border border-heron/40 px-3 py-2 text-[15px]" />
+          <input value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" className="mt-1 w-full glass-soft rounded-xl px-3 py-2 outline-none text-[15px]" />
         </label>
         <label className="text-[14px]">
           <span className="block text-heron">Type <b className="text-ink">{CHECKOUT_PHRASE}</b> to confirm</span>
           <input value={phrase} onChange={(e) => setPhrase(e.target.value)} autoComplete="off" spellCheck={false}
-            onPaste={(e) => e.preventDefault()} className="mt-1 w-full rounded-lg border border-heron/40 px-3 py-2 font-mono text-[15px]" />
+            onPaste={(e) => e.preventDefault()} className="mt-1 w-full glass-soft rounded-xl px-3 py-2 outline-none font-mono text-[15px]" />
         </label>
       </div>
       <button type="button" disabled={!ready} onClick={place} className="mt-3 rounded-lg bg-alarm px-4 py-2.5 text-[15px] font-bold text-white disabled:opacity-40">

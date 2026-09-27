@@ -113,9 +113,9 @@ export default function Demo() {
         <p className="mt-1 text-[15px] text-heron">Each one plays Rose's side of a phone call as text. Keep /family open in another window to watch it land.</p>
         <ol className="mt-4 grid gap-3 sm:grid-cols-2">
           {DEMO_BUTTONS.map((d, i) => (
-            <li key={d.id} className="rounded-xl bg-white p-4">
+            <li key={d.id} className="glass rounded-2xl p-4">
               <button type="button" onClick={() => run(d)} disabled={status[d.id]?.tone === "busy"}
-                className="w-full rounded-lg bg-ink px-4 py-3 text-left text-[17px] font-bold text-white disabled:opacity-60">
+                className="glass-ink w-full rounded-xl px-4 py-3 text-left text-[17px] font-bold disabled:opacity-60">
                 {i + 1}. {d.label}
               </button>
               <p className="mt-2 text-[14.5px]">{d.expect}</p>
@@ -126,8 +126,8 @@ export default function Demo() {
               <Line s={status[d.id]} />
             </li>
           ))}
-          <li className="rounded-xl border-2 border-dashed border-alarm/40 p-4">
-            <button type="button" onClick={verifierCancels} className="w-full rounded-lg border-2 border-alarm px-4 py-3 text-left text-[17px] font-bold text-alarm">
+          <li className="glass-tint rounded-2xl p-4" style={{ "--tint": "var(--color-alarm)" } as React.CSSProperties}>
+            <button type="button" onClick={verifierCancels} className="glass-btn w-full rounded-xl px-4 py-3 text-left text-[17px] font-bold text-alarm">
               Danny answers the check-in call
             </button>
             <p className="mt-2 text-[14.5px]">After the scam: the real Danny, on his number on file, says it wasn't him and cancels.</p>
@@ -138,18 +138,18 @@ export default function Demo() {
 
       <section aria-labelledby="time-h" className="mt-10 grid gap-3 sm:grid-cols-3">
         <h2 id="time-h" className="sr-only">Time and data</h2>
-        <div className="rounded-xl bg-white p-4">
-          <button type="button" onClick={fastForward} className="w-full rounded-lg bg-leaf px-4 py-3 text-[16px] font-bold text-white">
+        <div className="glass rounded-2xl p-4">
+          <button type="button" onClick={fastForward} className="w-full rounded-xl bg-leaf px-4 py-3 text-[16px] font-bold text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.3),0_6px_16px_-8px_rgb(47_122_74/0.7)]">
             Fast-forward to {next ? roseTime(next.startUtc) : "the next call"}
           </button>
           <Line s={status.ff} />
         </div>
-        <div className="rounded-xl bg-white p-4">
-          <button type="button" onClick={showEval} className="w-full rounded-lg border-2 border-ink px-4 py-3 text-[16px] font-bold">Show eval results</button>
+        <div className="glass rounded-2xl p-4">
+          <button type="button" onClick={showEval} className="glass-btn w-full rounded-xl px-4 py-3 text-[16px] font-bold">Show eval results</button>
           <Line s={status.eval} />
         </div>
-        <div className="rounded-xl bg-white p-4">
-          <button type="button" onClick={reset} className="w-full rounded-lg border-2 border-alarm px-4 py-3 text-[16px] font-bold text-alarm">Reset all data</button>
+        <div className="glass rounded-2xl p-4">
+          <button type="button" onClick={reset} className="glass-btn w-full rounded-xl px-4 py-3 text-[16px] font-bold text-alarm">Reset all data</button>
           <Line s={status.reset} />
         </div>
       </section>
@@ -157,9 +157,9 @@ export default function Demo() {
       <DoorDashPanel />
 
       {evalResult !== undefined && (
-        <section aria-labelledby="eval-h" className="mt-6 rounded-xl bg-white p-4">
+        <section aria-labelledby="eval-h" className="glass mt-6 rounded-2xl p-4">
           <h2 id="eval-h" className="text-lg font-bold">Fraud eval: latest run</h2>
-          <pre className="mt-2 max-h-[420px] overflow-auto rounded-lg bg-mist p-3 text-[13px]">{JSON.stringify(evalResult, null, 2)}</pre>
+          <pre className="glass-soft mt-2 max-h-[420px] overflow-auto rounded-xl p-3 text-[13px]">{JSON.stringify(evalResult, null, 2)}</pre>
         </section>
       )}
     </main>

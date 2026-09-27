@@ -46,7 +46,7 @@ export default function CallRoom({ params, searchParams }: {
       {member ? (
         <Room scheduledCallId={scheduledCallId} memberId={member} />
       ) : (
-        <section aria-labelledby="who-h" className="mt-6 rounded-2xl bg-white p-6">
+        <section aria-labelledby="who-h" className="glass mt-6 rounded-2xl p-6">
           <h2 id="who-h" className="text-xl font-bold">Who's joining?</h2>
           <div className="mt-4 flex flex-wrap gap-3">
             {call === undefined && <p className="text-heron">Loading the call…</p>}

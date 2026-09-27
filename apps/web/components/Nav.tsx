@@ -15,8 +15,8 @@ export function Nav() {
   // The tablet is Rose's screen: no chrome, nothing to tap by mistake.
   if (path?.startsWith("/tablet")) return null;
   return (
-    <nav className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-heron/20 bg-white/70 px-5 py-3">
-      <span className="text-lg font-bold">Care Circle</span>
+    <nav className="glass sticky top-3 z-30 mx-auto mt-3 flex w-fit max-w-[calc(100%-2rem)] flex-wrap items-center gap-x-5 gap-y-2 rounded-full py-1.5 pl-5 pr-1.5">
+      <span className="text-[17px] font-bold tracking-tight">Care Circle</span>
       <ul className="flex flex-wrap gap-1">
         {LINKS.map((l) => {
           const active = path?.startsWith(l.href);
@@ -25,7 +25,7 @@ export function Nav() {
               <Link
                 href={l.href}
                 aria-current={active ? "page" : undefined}
-                className={`rounded-md px-3 py-1.5 text-[15px] ${active ? "bg-ink text-white" : "text-heron hover:bg-heron/10 hover:text-ink"}`}
+                className={`block rounded-full px-3.5 py-1.5 text-[15px] transition-colors ${active ? "glass-ink" : "text-heron hover:bg-white/55 hover:text-ink"}`}
               >
                 {l.label}
               </Link>

@@ -57,7 +57,7 @@ export function Phone(props: {
         <span className="block text-xl font-bold">{owner.name}</span>
         <span className="text-[15px] text-heron">{owner.relation} in {owner.city}, {clock}</span>
       </figcaption>
-      <div className="relative h-[640px] w-full rounded-[44px] border-[10px] border-ink bg-ink shadow-xl">
+      <div className="relative h-[640px] w-full rounded-[46px] border-[10px] border-[#1b262d] bg-[#1b262d] shadow-[inset_0_0_0_1px_rgb(255_255_255/0.08),0_0_0_1px_rgb(30_43_51/0.25),0_30px_60px_-24px_rgb(30_43_51/0.55)]">
         <div className="flex h-full flex-col overflow-hidden rounded-[34px] bg-chat-wall font-[family-name:var(--font-phone)]">
           <div className="flex items-center justify-between bg-chat-bar px-5 pt-2 text-[12px] font-semibold text-white">
             <span>{clock}</span><span aria-hidden>▂▄▆ ◔</span>

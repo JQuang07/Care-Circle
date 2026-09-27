@@ -75,12 +75,26 @@ function card(e: DemoEvent): { tone: string; title: string; body: string } | und
       return undefined;
   }
 }
-const TONE: Record<string, string> = {
-  leaf: "border-leaf bg-leaf/10",
-  alarm: "border-alarm bg-alarm/10",
-  honey: "border-honey bg-honey/15",
-  heron: "border-heron/40 bg-white",
+const TONE: Record<string, { tint: string; mark: string; icon: string }> = {
+  leaf: { tint: "var(--color-leaf)", mark: "bg-leaf/15 text-leaf", icon: "✓" },
+  alarm: { tint: "var(--color-alarm)", mark: "bg-alarm/12 text-alarm", icon: "!" },
+  honey: { tint: "var(--color-honey)", mark: "bg-honey/25 text-[#8a5a00]", icon: "…" },
+  heron: { tint: "var(--color-heron)", mark: "bg-heron/12 text-heron", icon: "↺" },
 };
+
+/** One thing that happened: a frosted pane tinted by its tone, with a small mark. */
+function EventCard({ tone, title, body }: { tone: string; title: string; body: string }) {
+  const t = TONE[tone] ?? TONE.heron!;
+  return (
+    <li className="glass-tint flex gap-3 rounded-2xl px-3.5 py-3" style={{ "--tint": t.tint } as React.CSSProperties}>
+      <span aria-hidden className={`grid size-7 shrink-0 place-items-center rounded-full text-[14px] font-bold ${t.mark}`}>{t.icon}</span>
+      <span className="min-w-0">
+        <span className="block text-[15px] font-bold leading-snug">{title}</span>
+        <span className="block text-[14.5px] leading-snug text-ink/80">{body}</span>
+      </span>
+    </li>
+  );
+}
 
 /** Any audio the browser can decode → 16 kHz mono 16-bit WAV (what Muse Voice Transcribe takes). */
 async function toWav(blob: Blob): Promise<Blob> {
@@ -462,15 +476,15 @@ export default function Stage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h1 id="line-h" className="text-2xl font-bold">Rose's line</h1>
             <div className="flex gap-2">
-              <button type="button" onClick={newCall} disabled={!!busy} className="rounded-lg border-2 border-ink px-3 py-1.5 text-[15px] font-bold disabled:opacity-50">New call</button>
-              <button type="button" onClick={reset} disabled={!!busy} className="rounded-lg bg-alarm px-3 py-1.5 text-[15px] font-bold text-white disabled:opacity-50">Reset demo</button>
+              <button type="button" onClick={newCall} disabled={!!busy} className="glass-btn rounded-full px-4 py-1.5 text-[15px] font-bold disabled:opacity-50">New call</button>
+              <button type="button" onClick={reset} disabled={!!busy} className="glass-btn rounded-full px-4 py-1.5 text-[15px] font-bold text-alarm disabled:opacity-50">Reset demo</button>
             </div>
           </div>
 
-          <div role="tablist" aria-label="Scenario" className="mt-3 flex flex-wrap gap-2">
+          <div role="tablist" aria-label="Scenario" className="glass-soft mt-3 inline-flex w-fit flex-wrap gap-1 rounded-full p-1">
             {(scenarios.length ? scenarios : Object.keys(LABELS).map((name) => ({ name, clips: [] }))).map((s) => (
               <button key={s.name} role="tab" aria-selected={s.name === active} type="button" onClick={() => pick(s.name)} disabled={!!busy}
-                className={`rounded-full px-4 py-1.5 text-[15px] font-bold ${s.name === active ? "bg-ink text-white" : "bg-white text-ink"} disabled:opacity-60`}>
+                className={`rounded-full px-4 py-1.5 text-[15px] font-bold transition-colors ${s.name === active ? "glass-ink" : "text-ink/75 hover:bg-white/50 hover:text-ink"} disabled:opacity-60`}>
                 {LABELS[s.name] ?? s.name}
               </button>
             ))}
@@ -478,9 +492,9 @@ export default function Stage() {
 
           <ol className="mt-3 grid gap-2">
             {scenario?.clips.map((c, i) => (
-              <li key={c.file} className={`flex items-center gap-3 rounded-xl bg-white p-3 ${done.has(c.file) ? "opacity-60" : ""}`}>
+              <li key={c.file} className={`glass flex items-center gap-3 rounded-2xl p-3 ${done.has(c.file) ? "opacity-60" : ""}`}>
                 <button type="button" onClick={() => play(c)} disabled={!!busy} aria-label={`Play clip ${i + 1}`}
-                  className={`h-11 w-11 shrink-0 rounded-full text-lg font-bold text-white disabled:opacity-50 ${c.speaker ? "bg-heron" : "bg-leaf"}`}>
+                  className={`grid h-11 w-11 shrink-0 place-items-center rounded-full text-lg font-bold text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.35),0_4px_12px_-4px_rgb(30_43_51/0.4)] disabled:opacity-50 ${c.speaker ? "bg-heron" : "bg-leaf"}`}>
                   {busy === c.file ? "…" : "▶"}
                 </button>
                 <p className="min-w-0 text-[15px]">
@@ -488,21 +502,21 @@ export default function Stage() {
                 </p>
               </li>
             ))}
-            {active === "family" && <li className="rounded-xl border-2 border-dashed border-honey px-3 py-2 text-[14.5px]">After clip 1, tap the same time on Lisa's and Danny's phones, then play clip 2.</li>}
+            {active === "family" && <li className="glass-tint rounded-2xl px-3.5 py-2.5 text-[14.5px]" style={{ "--tint": "var(--color-honey)" } as React.CSSProperties}>After clip 1, tap the same time on Lisa's and Danny's phones, then play clip 2.</li>}
             {scenario && !scenario.clips.length && <li className="text-[15px] text-heron">No clips in demo-audio/{active}.</li>}
           </ol>
 
-          <div className="mt-3 flex flex-wrap items-center gap-3 rounded-xl bg-white p-3">
+          <div className="glass mt-3 flex flex-wrap items-center gap-3 rounded-2xl p-3">
             <button type="button" onClick={mic ? stopMic : startMic} disabled={!!busy && !mic}
               aria-pressed={!!mic} aria-label={mic ? "Stop and send" : "Speak into the microphone"}
-              className={`flex h-14 items-center gap-2 rounded-full px-5 text-[17px] font-bold text-white disabled:opacity-50 ${mic ? "animate-pulse bg-alarm" : "bg-ink"}`}>
+              className={`flex h-14 items-center gap-2 rounded-full px-5 text-[17px] font-bold text-white disabled:opacity-50 ${mic ? "animate-pulse bg-alarm shadow-[inset_0_1px_0_rgb(255_255_255/0.3)]" : "glass-ink"}`}>
               <span aria-hidden>{mic ? "■" : "🎙"}</span>
               {mic ? `Listening… 0:${String(elapsed).padStart(2, "0")} · tap to send` : busy === "mic" ? "Transcribing…" : "Speak"}
             </button>
             <fieldset className="flex items-center gap-1 text-[15px]" disabled={!!mic || !!busy}>
               <legend className="sr-only">Who is speaking</legend>
               {([["senior", "as Rose"], ["mem_danny", "as Danny (check-in call)"]] as const).map(([v, label]) => (
-                <label key={v} className={`cursor-pointer rounded-full px-3 py-1.5 ${speakAs === v ? "bg-heron text-white" : "bg-mist"}`}>
+                <label key={v} className={`cursor-pointer rounded-full px-3 py-1.5 transition-colors ${speakAs === v ? "bg-heron text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.3)]" : "glass-soft"}`}>
                   <input type="radio" name="speakAs" value={v} checked={speakAs === v} onChange={() => setSpeakAs(v)} className="sr-only" />
                   {label}
                 </label>
@@ -513,7 +527,7 @@ export default function Stage() {
                 <span>Mic</span>
                 <select value={deviceId} disabled={!!mic}
                   onChange={(e) => { setDeviceId(e.target.value); try { localStorage.setItem("stage-mic", e.target.value); } catch { /* storage blocked */ } }}
-                  className="max-w-[260px] truncate rounded-md border border-heron/40 bg-white px-2 py-1 text-ink">
+                  className="glass-soft max-w-[260px] truncate rounded-lg px-2 py-1 text-ink">
                   <option value="">System default</option>
                   {devices.filter((d) => d.deviceId && d.deviceId !== "default").map((d, i) => (
                     <option key={d.deviceId} value={d.deviceId}>{d.label || `Microphone ${i + 1}`}</option>
@@ -522,7 +536,7 @@ export default function Stage() {
               </label>
               <span className="flex items-center gap-2" aria-label={mic ? `Input level ${Math.round(level * 100)} percent` : undefined}>
                 <span>Level</span>
-                <span className="h-2.5 w-32 overflow-hidden rounded-full bg-mist">
+                <span className="h-2.5 w-32 overflow-hidden rounded-full bg-ink/8 shadow-[inset_0_1px_2px_rgb(30_43_51/0.12)]">
                   <span className={`block h-full rounded-full transition-[width] duration-75 ${level > 0.05 ? "bg-leaf" : "bg-heron/40"}`} style={{ width: `${Math.round(level * 100)}%` }} />
                 </span>
                 {mic && level < 0.02 && elapsed >= 2 && <span className="text-alarm">no sound yet</span>}
@@ -530,11 +544,12 @@ export default function Stage() {
             </div>
           </div>
 
-          <div ref={log} id="rose-log" aria-live="polite" className="mt-4 max-h-[46vh] min-h-[220px] flex-1 space-y-2 overflow-y-auto rounded-xl bg-chat-wall p-3">
+          <div ref={log} id="rose-log" aria-live="polite" className="glass-soft mt-4 max-h-[46vh] min-h-[220px] flex-1 space-y-2 overflow-y-auto rounded-2xl p-3">
             {!turns.length && <p className="text-[15px] text-heron">Press ▶ to play Rose's first clip.</p>}
             {turns.map((t, i) => (
               <div key={i} className={`flex ${t.kind === "out" ? "justify-end" : ""}`}>
-                <div className={`max-w-[85%] rounded-lg px-3 py-2 text-[15.5px] shadow-sm ${t.kind === "out" ? "bg-chat-out" : "bg-white"}`}>
+                <div className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-[15.5px] ${t.kind === "out" ? "glass-tint rounded-br-md" : "glass rounded-bl-md"}`}
+                  style={t.kind === "out" ? ({ "--tint": "var(--color-leaf)" } as React.CSSProperties) : undefined}>
                   <p className="text-[12.5px] font-bold text-heron">{t.who}{t.by ? ` · ${t.by}` : ""}</p>
                   <p>{t.text || <em>(didn't catch that)</em>}</p>
                 </div>
@@ -545,27 +560,17 @@ export default function Stage() {
           <form className="mt-2 flex gap-2" onSubmit={(e) => { e.preventDefault(); void sendTyped(); }}>
             <label htmlFor="typed" className="sr-only">Type as Rose</label>
             <input id="typed" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="Or type what Rose says…"
-              className="min-w-0 flex-1 rounded-lg border border-heron/40 bg-white px-3 py-2 text-[15px]" />
-            <button type="submit" disabled={!!busy || !typed.trim()} className="rounded-lg bg-ink px-4 py-2 text-[15px] font-bold text-white disabled:opacity-50">Say</button>
+              className="glass min-w-0 flex-1 rounded-full px-4 py-2 text-[15px] outline-none placeholder:text-heron/80" />
+            <button type="submit" disabled={!!busy || !typed.trim()} className="glass-ink rounded-full px-5 py-2 text-[15px] font-bold disabled:opacity-50">Say</button>
           </form>
           {status && <p role="status" className="mt-2 text-[14.5px] text-heron">{status}</p>}
 
           <ul aria-label="What happened" className="mt-4 grid gap-2 sm:grid-cols-2">
             {events.map((e, i) => {
               const c = card(e);
-              return c ? (
-                <li key={i} className={`rounded-xl border-l-4 px-3 py-2 ${TONE[c.tone]}`}>
-                  <p className="text-[15px] font-bold">{c.title}</p>
-                  <p className="text-[14.5px]">{c.body}</p>
-                </li>
-              ) : null;
+              return c ? <EventCard key={i} {...c} /> : null;
             })}
-            {deliveryCards.map((c) => (
-              <li key={c.key} className={`rounded-xl border-l-4 px-3 py-2 ${TONE[c.tone]}`}>
-                <p className="text-[15px] font-bold">{c.title}</p>
-                <p className="text-[14.5px]">{c.body}</p>
-              </li>
-            ))}
+            {deliveryCards.map((c) => <EventCard key={c.key} tone={c.tone} title={c.title} body={c.body} />)}
           </ul>
         </section>
 

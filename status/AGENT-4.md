@@ -168,3 +168,4 @@ Self-test against the fake stack: **5/5, 10 runs in a row.**
 - New `/stage` page (`app/stage/page.tsx`): Rose's line (clips → `/api/stage/audio-turn` → voice `/demo/audio-turn`, reply spoken with speechSynthesis, event cards) + Lisa's and Danny's `Phone`s + Reset (D1 order).
 - New server routes: `app/api/stage/clips`, `app/api/stage/clip/[scenario]/[file]`, `app/api/stage/audio-turn` (multipart forwarder; adds X-CC-Secret server-side and the clip's .txt as STT fallback). `lib/clips.ts` reads `demo-audio/` (override with `DEMO_AUDIO_DIR`).
 - `lib/services.ts`: voice `POST /demo/converse` and `/demo/converse/:id/end` allowed through the proxy. Nav: "Stage" link.
+- Look: liquid-glass surfaces (`.glass`, `.glass-soft`, `.glass-tint`, `.glass-btn`, `.glass-ink` in `globals.css`) over soft colour fields; floating pill Nav. Event and alert cards no longer use coloured left borders: tone is a tinted pane plus a small mark.

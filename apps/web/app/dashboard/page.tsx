@@ -78,7 +78,7 @@ export default function Dashboard() {
                 {openHolds.map((h) => {
                   const o = orderById[h.orderId];
                   return (
-                    <li key={h.id} className="rounded-xl border-l-4 border-alarm bg-white px-4 py-3">
+                    <li key={h.id} className="glass-tint rounded-2xl px-4 py-3" style={{ "--tint": "var(--color-alarm)" } as React.CSSProperties}>
                       <p className="text-[15px] font-bold">{o ? `${o.request.payeeDescription ?? o.request.type}, ${usd(o.request.amountCents)}` : h.orderId}</p>
                       <p className="mt-1 text-[15.5px] leading-relaxed">{o?.fraud.familyFacingSummary ?? "Loading the reason…"}</p>
                       <p className="mt-2 text-[14px] text-heron">Stays paused until {roseTime(h.coolingOffUntil)} unless the family decides sooner.</p>
@@ -92,7 +92,7 @@ export default function Dashboard() {
 
           <section aria-labelledby="orders-h">
             <h2 id="orders-h" className="text-xl font-bold">Recent orders<SampleTag s={d?.orders} /></h2>
-            <div className="mt-3 overflow-x-auto rounded-xl bg-white">
+            <div className="glass mt-3 overflow-x-auto rounded-2xl">
               <table className="w-full text-left text-[15px]">
                 <thead className="text-[13.5px] text-heron">
                   <tr><th className="px-4 py-2 font-normal">When</th><th className="px-4 py-2 font-normal">What</th><th className="px-4 py-2 text-right font-normal">Amount</th><th className="px-4 py-2 font-normal">Status</th><th className="px-4 py-2"><span className="sr-only">Details</span></th></tr>
@@ -129,7 +129,7 @@ export default function Dashboard() {
           ) : (
             <ul className="mt-3 space-y-3">
               {d!.upcoming.data.map((c) => (
-                <li key={c.id} className="rounded-xl bg-white px-4 py-3">
+                <li key={c.id} className="glass rounded-2xl px-4 py-3">
                   <p className="text-[17px] font-bold">{roseTime(c.startUtc)} <span className="text-[14px] font-normal text-heron">Rose's time</span></p>
                   <p className="mt-1 text-[15px]">{c.memberIds.map((id) => id.replace("mem_", "").replace(/^./, (x) => x.toUpperCase())).join(", ")}{c.recurring ? ", every week" : ""}</p>
                   <p className="mt-1 text-[14px] text-heron">Rose joins {c.seniorJoin === "phone_dialout" ? "on her regular phone" : "on her tablet"}. Status: {c.status}.</p>

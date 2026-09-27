@@ -83,7 +83,7 @@ export function MessageBubble(props: BubbleProps) {
           <div className="px-3 py-2 text-[14.5px] leading-snug">
             <p>{msg.body}</p>
             {order && order.fraud.signals.length > 0 && (
-              <ul className="mt-2 space-y-1 border-l-2 border-alarm/40 pl-2 text-[13px] text-black/75">
+              <ul className="mt-2 space-y-1 rounded-md bg-alarm/[0.06] px-2 py-1.5 text-[13px] text-black/75">
                 {order.fraud.signals.map((s) => (
                   <li key={s.code}>
                     <span className="font-semibold">{LAYER_NAMES[s.layer]}:</span> {s.description}
@@ -129,7 +129,7 @@ export function MessageBubble(props: BubbleProps) {
       );
     case "briefing":
       return (
-        <div className={`${shell} border-l-4 border-heron`}>
+        <div className={shell}>
           <p className="text-[12px] font-semibold text-heron">Before your call</p>
           <p>{msg.body}</p>
           {stamp}
