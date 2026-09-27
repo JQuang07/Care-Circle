@@ -138,9 +138,14 @@ async function check(scenario: string) {
   let ok = false;
   let detail = "";
   if (scenario === "groceries") {
-    await new Promise((r) => setTimeout(r, 1500));
+    // A real DoorDash cart builds after payment (a store search and add per item, then the
+    // checkout page): up to a few minutes. Follow money's record of the delivery until it settles.
+    let d = last?.fulfilment?.delivery;
+    for (let waited = 0; waited < 240_000 && last?.fulfilment?.quoteId && !["dry_run_complete", "failed", "awaiting_live_checkout"].includes(d?.status); waited += 5000) {
+      await new Promise((r) => setTimeout(r, 5000));
+      d = (await api<any>("money", "GET", `/orders/${last.id}`))?.fulfilment?.delivery;
+    }
     const lisa = await api<any[]>("family", "GET", "/messages?memberId=mem_lisa");
-    const d = last?.fulfilment?.delivery;
     const addTo = lisa.some((m) => m.kind === "add_to_order");
     ok = last?.status === "paid" && d?.status === "dry_run_complete" && addTo;
     detail = `order ${last?.status} $${(last?.request.amountCents / 100).toFixed(2)} store=${last?.fulfilment?.storeName} delivery=${d?.status} lisa add_to_order=${addTo}`;

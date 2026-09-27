@@ -163,8 +163,14 @@ export class DoorDashMcpProvider implements Provider {
           items.push(it === pick ? { ...it, staple: true } : it);
         }
       };
-      for (const q of [...new Set(wanted.map((w) => w.trim()).filter(Boolean))])
-        add(read(await this.call("doordash_menu", { restaurantId: store.id, query: q })), q);
+      for (const q of [...new Set(wanted.map((w) => w.trim()).filter(Boolean))]) {
+        let found = read(await this.call("doordash_menu", { restaurantId: store.id, query: q }));
+        // The store search sometimes returns before its results settle ("wheat bread" came back
+        // with nothing relevant); one more search settles it. A real miss stays not_found.
+        if (!found.some((it) => score(q, it.name) >= 0.5))
+          found = [...found, ...read(await this.call("doordash_menu", { restaurantId: store.id, query: q }))];
+        add(found, q);
+      }
       if (!items.length) add(read(await this.call("doordash_menu", { restaurantId: store.id })));
       if (!items.length) throw new ProviderError("EMPTY_MENU", `Couldn't read items for ${store.name}`);
       return items;
