@@ -27,7 +27,7 @@ const LABELS: Record<string, string> = {
 interface Clip { file: string; text: string; speaker?: string }
 interface Scenario { name: string; clips: Clip[] }
 interface DemoEvent { type: string; summary: string; data?: any }
-interface Turn { who: string; text: string; by?: string; kind: "in" | "out" }
+interface Turn { who: string; text: string; by?: string; kind: "in" | "out"; filler?: boolean }
 type Action = NonNullable<Message["actions"]>[number];
 
 const roseTime = (iso: string) =>
@@ -235,13 +235,31 @@ export default function Stage() {
   };
   const pick = (name: string) => { if (name !== active) { newCall(); setActive(name); } };
 
+  /** A live DoorDash quote takes a minute: if the reply is slow, Care Circle says so out loud. */
+  const holdOn = (pending: Promise<unknown>, member: boolean) => {
+    let settled = false;
+    void pending.catch(() => undefined).finally(() => { settled = true; });
+    const t = setTimeout(() => {
+      if (settled || member) return;
+      const text = active === "groceries"
+        ? "One moment, Rose. I'm checking Kroger's prices on DoorDash for you."
+        : "One moment, Rose. Let me check on that for you.";
+      setTurns((ts) => [...ts, { who: "Care Circle", text, by: "while it works", kind: "out", filler: true }]);
+      void speak(text);
+    }, 1500);
+    return () => clearTimeout(t);
+  };
+
   const handle = async (r: any, who: string, member: boolean) => {
     setSessionId(r.sessionId);
-    setTurns((t) => [
-      ...t,
-      { who, text: r.transcript ?? "", by: HEARD_BY[r.transcribedBy] ?? r.transcribedBy, kind: "in" },
-      { who: "Care Circle", text: r.reply, by: r.reasonedBy === "mock" ? "keyword fallback" : "Muse", kind: "out" },
-    ]);
+    setTurns((t) => {
+      // A holding line was spoken while this turn ran: Rose's words go above it.
+      const said: Turn = { who, text: r.transcript ?? "", by: HEARD_BY[r.transcribedBy] ?? r.transcribedBy, kind: "in" };
+      const reply: Turn = { who: "Care Circle", text: r.reply, by: r.reasonedBy === "mock" ? "keyword fallback" : "Muse", kind: "out" };
+      const i = t.findIndex((x) => x.filler);
+      if (i < 0) return [...t, said, reply];
+      return [...t.slice(0, i), said, { ...t[i]!, filler: false }, ...t.slice(i + 1), reply];
+    });
     setEvents((e) => [...e, ...(r.events ?? [])]);
     setTick((n) => n + 1);
     await speak(r.reply, member);
@@ -265,7 +283,8 @@ export default function Stage() {
       // Transcribe while the clip plays; show the result once Rose has finished speaking.
       const pending = fetch("/api/stage/audio-turn", { method: "POST", body: form }).then(async (res) => ({ ok: res.ok, body: await res.json() }));
       await played;
-      const r = await pending;
+      const stopHold = holdOn(pending, !!clip.speaker);
+      const r = await pending.finally(stopHold);
       if (!r.ok) throw new Error(r.body?.error ? `${r.body.error.code}: ${r.body.error.message}` : "voice failed");
       await handle(r.body, clip.speaker ? who(clip.speaker) : "Rose", !!clip.speaker);
       setDone((d) => new Set(d).add(clip.file));
@@ -287,7 +306,9 @@ export default function Stage() {
       form.append("seniorId", "sen_rose");
       if (sid) form.append("sessionId", sid);
       if (as !== "senior") form.append("speaker", as);
-      const res = await fetch("/api/stage/audio-turn", { method: "POST", body: form });
+      const req = fetch("/api/stage/audio-turn", { method: "POST", body: form });
+      const stopHold = holdOn(req, as !== "senior");
+      const res = await req.finally(stopHold);
       const body = await res.json();
       if (!res.ok) throw new Error(body?.error ? `${body.error.code}: ${body.error.message}` : "voice failed");
       await handle(body, as === "senior" ? "Rose" : who(as), as !== "senior");

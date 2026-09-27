@@ -60,3 +60,10 @@ Also owns `services/delivery` on **:4004** (D14). Run everything with `pnpm dev`
 ## Demo MVP finish (integration-v3)
 - Family planner Muse call: 6 s timeout, `reasoning_effort: "minimal"` (it overran voice's 10 s dependency timeout → 500 on "set up a call").
 - Root `scripts/demo-run.ts` + `pnpm demo:run`. See docs/FINISH-PROGRESS.md.
+
+## Demo hotfix 2026-09-27 (integration-v3)
+- Delivery `/health` answers from a cached DoorDash status. Web's health polling had jammed the one-at-a-time browser queue, so grocery quotes never ran and the stage hung.
+- Dry run: if the DoorDash cart build breaks, the dry run finishes on the quote's prices (amount and cap gates still apply; the reason is kept in `cartNote`). Live mode still fails.
+- Quotes reuse the login check (5 min) and store lookup (30 min).
+- dd-mcp patch: waits for the grocery `/convenience` redirect; reads `$0.59/lb` / `each` produce prices (bananas). Needs an MCP server restart.
+- **For Agent 4, done with the human's OK:** `apps/web/app/stage/page.tsx` speaks a holding line ("One moment, Rose. I'm checking Kroger's prices…") when a turn takes more than 1.5 s. Rose's line is placed above it once the transcript arrives.
