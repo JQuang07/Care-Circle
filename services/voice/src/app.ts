@@ -180,7 +180,7 @@ export async function createApp(
     }
     return { callId: s.callId };
   });
-  registerConverse(app, c, engine, store, deps, reasoner);
+  await registerConverse(app, c, engine, store, deps, reasoner);
   app.get("/demo/calls", async (request) => {
     const { seniorId } = z.object({ seniorId: id("sen") }).parse(request.query);
     return [...store.sessions.values()]

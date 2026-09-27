@@ -4,7 +4,7 @@ Branch `integration-v3`, one machine. Updated after each phase.
 | Phase | Status | Commit |
 |---|---|---|
 | A · Muse drives voice (`/demo/converse`) | ✅ done: 4/4 scenarios pass on Muse (text) | see `git log` "Phase A" |
-| B · Audio in (`/demo/audio-turn`, `pnpm demo:run`) | ⏳ | |
+| B · Audio in (`/demo/audio-turn`, `pnpm demo:run`) | ✅ done: 4/4 pass from WAV clips, transcribed by Muse | see `git log` "Phase B" |
 | C · `/stage` demo screen | ⏳ | |
 | D · Typecheck, tests, e2e, README | ⏳ | |
 
@@ -20,6 +20,11 @@ Branch `integration-v3`, one machine. Updated after each phase.
   - **Dependency 4xx** errors now reach Muse as a refusal, not as a 500.
   - **Muse prompt:** knows the merchants and circle IDs, so the Mia gift is low risk.
 - Carried in from before (commit 731926f): an offer that has been read back survives a question ("Did the family pick a time?") and a privacy span.
+
+## Phase B notes
+- Speech-to-text: **Muse Voice Transcribe works with this key** (`POST https://api.meta.ai/v1/asr/transcribe`, model `muse-voice-transcribe-1.0`, mode `PUSH_TO_TALK`, about 3 s a clip). It accepts WAV only (16/24 kHz mono PCM). Non-WAV audio goes to Deepgram prerecorded (`DEEPGRAM_API_KEY`), and after that to the sidecar `.txt` (sent as the `sidecar` field, or found under `demo-audio/` by file hash). Transcripts are cached per SHA-256. The turn never fails on STT.
+- `demo-audio/` was not in the repo, so I generated placeholder clips with Windows speech synth (Zira as Rose, David as Danny) from the scripted lines. Replace them with real recordings under the same names.
+- `pnpm demo:run <scenario|all> [--text]`.
 
 ## Open issues
 - **Real DoorDash cart is not verified.** The DoorDash MCP server on :3100 answers `401 unauthorized` to the token in `.env`: it was started with a different `MCP_HTTP_TOKEN`. Claude was not allowed to restart it. Fix: restart it with the `.env` token (or copy its token into `.env`), then restart `pnpm dev`. `.env` now has `DELIVERY_PROVIDER=doordash_thirdparty`, but the running delivery service still uses mock until the restart. Until then, groceries do a dry run at "FreshMart (demo)".

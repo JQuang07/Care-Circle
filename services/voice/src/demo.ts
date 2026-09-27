@@ -1,5 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { FastifyInstance } from "fastify";
+import multipart from "@fastify/multipart";
+import { transcribe, type Audio } from "./stt.js";
 import { z } from "zod";
 import type { Config } from "./config.js";
 import type { Dependencies } from "./dependencies.js";
@@ -169,7 +171,7 @@ const converseBody = z
   .strict();
 export type ConverseInput = z.infer<typeof converseBody>;
 
-export function registerConverse(
+export async function registerConverse(
   app: FastifyInstance,
   c: Config,
   engine: Engine,
@@ -266,6 +268,35 @@ export function registerConverse(
     return { ...result, reasonedBy: by, events };
   }
 
+  await app.register(multipart, { limits: { fileSize: 25 * 1024 * 1024, files: 1 } });
+  // Recorded clip → speech-to-text → the same turn as /demo/converse.
+  app.post("/demo/audio-turn", async (request) => {
+    assert(c.mock, "DEMO_DISABLED", "Demo turns are available only in MOCK=1.", 403);
+    const fields: Record<string, string> = {};
+    let audio: Audio | undefined;
+    for await (const part of request.parts()) {
+      if (part.type === "file")
+        audio = { buffer: await part.toBuffer(), filename: part.filename, mimetype: part.mimetype };
+      else fields[part.fieldname] = String(part.value);
+    }
+    assert(audio?.buffer.length, "AUDIO_REQUIRED", "Send the clip as the 'file' field.", 400);
+    const t = await transcribe(c, audio!, fields.sidecar);
+    const base = converseBody.omit({ text: true }).parse({
+      sessionId: fields.sessionId || undefined,
+      seniorId: fields.seniorId,
+      speaker: fields.speaker || undefined,
+    });
+    if (!t.transcript)
+      return {
+        sessionId: base.sessionId,
+        transcript: "",
+        transcribedBy: t.transcribedBy,
+        reply: "I'm sorry, I didn't catch that. Could you say it again?",
+        events: [],
+      };
+    const r = await converse({ ...base, text: t.transcript });
+    return { ...r, transcript: t.transcript, transcribedBy: t.transcribedBy, cached: !!t.cached };
+  });
   app.post("/demo/converse", async (request) =>
     converse(converseBody.parse(request.body)),
   );
