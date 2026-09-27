@@ -1,8 +1,45 @@
 diff --git a/src/browser.ts b/src/browser.ts
-index 8a376f3..1f38366 100644
+index 8a376f3..f8f880c 100644
 --- a/src/browser.ts
 +++ b/src/browser.ts
-@@ -419,8 +419,85 @@ export async function searchRestaurants(
+@@ -14,6 +14,7 @@ const DEFAULT_TIMEOUT = 60000;
+ let browser: Browser | null = null;
+ let context: BrowserContext | null = null;
+ let page: Page | null = null;
++let contextClosed = false;
+ 
+ export interface Restaurant {
+   id: string;
+@@ -64,19 +65,24 @@ export interface OrderStatus {
+  * Initialize browser with stealth settings
+  */
+ async function initBrowser(): Promise<void> {
+-  if (browser?.isConnected()) return;
++  // A persistent context may have no Browser object (browser() is null), so the
++  // context's own "close" event is what says the window is gone.
++  if (context && !contextClosed && (browser ? browser.isConnected() : true)) return;
+ 
+   // Chromium dies under long-running containers (OOM, a crashed tab, a stray
+-  // SIGKILL). Without this the stale handle is truthy forever and every later
+-  // call fails until someone restarts the process.
+-  if (browser) {
++  // SIGKILL) or someone closes the window. Without this the stale handle is kept
++  // forever and every later call fails until someone restarts the process.
++  if (context || browser) {
+     console.error("Browser disconnected - relaunching.");
++    await context?.close().catch(() => {});
+     browser = null;
+     context = null;
+     page = null;
+   }
+ 
+   context = await launchContext();
++  contextClosed = false;
++  context.on("close", () => { contextClosed = true; });
+   browser = context.browser();
+ 
+   // Load saved cookies
+@@ -419,22 +425,125 @@ export async function searchRestaurants(
  /**
   * Get restaurant menu
   */
@@ -23,13 +60,23 @@ index 8a376f3..1f38366 100644
 +  return { price: parseFloat(price[1]), name: parts[1], size: parts.slice(2).join(", ") };
 +}
 +
-+/** Grocery stores redirect /store/:id → /convenience/store/:id several seconds after load. */
-+async function settleStorePage(p: Page): Promise<void> {
-+  for (let waited = 0; waited < 12000; waited += 500) {
-+    if (isRetailUrl(p.url())) return;
-+    if ((await p.locator(RETAIL_CARD).count().catch(() => 0)) > 0) return;
-+    await p.waitForTimeout(500);
-+  }
++/** Stores seen at /convenience/store/:id; later visits go straight there, with no redirect to wait for. */
++const retailStores = new Set<string>();
++const storeUrl = (id: string) =>
++  `${DOORDASH_BASE_URL}/${retailStores.has(id) ? "convenience/" : ""}store/${id}`;
++
++/**
++ * Grocery stores redirect /store/:id → /convenience/store/:id several seconds after load.
++ * Only the URL counts: grocery cards render before the redirect, and a search started then
++ * is wiped out by it (items came back empty). Restaurants never redirect and wait it out.
++ */
++async function settleStorePage(p: Page, id: string): Promise<boolean> {
++  for (let waited = 0; waited < 15000 && !isRetailUrl(p.url()); waited += 500) await p.waitForTimeout(500);
++  if (!isRetailUrl(p.url())) return false;
++  retailStores.add(id);
++  await p.waitForLoadState("domcontentloaded").catch(() => {});
++  await p.waitForTimeout(1500);
++  return true;
 +}
 +
 +/** The cart icon and checkout only exist on DoorDash pages; a fresh tab is about:blank. */
@@ -89,16 +136,20 @@ index 8a376f3..1f38366 100644
  ): Promise<{ success: boolean; restaurant?: string; categories?: MenuCategory[]; error?: string }> {
    const p = await getPage();
    const ctx = await getContext();
-@@ -431,10 +508,26 @@ export async function getMenu(
+ 
+   try {
+-    await p.goto(`${DOORDASH_BASE_URL}/store/${restaurantId}`, {
++    await p.goto(storeUrl(restaurantId), {
+       waitUntil: "domcontentloaded",
        timeout: DEFAULT_TIMEOUT,
      });
      await p.waitForTimeout(4000);
 -    
++    if (!isRetailUrl(p.url())) await settleStorePage(p, restaurantId);
 +
      // Get restaurant name from h1 or page content
      const restaurantName = await p.locator('h1').first().textContent().catch(() => "") || "Unknown Restaurant";
 -    
-+    if (!isRetailUrl(p.url())) await settleStorePage(p);
 +
 +    // Grocery/convenience layout: search inside the store (a full catalogue is thousands of items).
 +    if (isRetailUrl(p.url())) {
@@ -118,7 +169,7 @@ index 8a376f3..1f38366 100644
      // Wait for menu items to load
      await p.waitForTimeout(2000);
      
-@@ -551,16 +644,48 @@ export async function addToCart(
+@@ -551,16 +660,48 @@ export async function addToCart(
    const ctx = await getContext();
  
    try {
@@ -127,15 +178,16 @@ index 8a376f3..1f38366 100644
 +    // left open by doordash_cart would otherwise cover the store's search box.
      const currentUrl = p.url();
 -    if (!currentUrl.includes(`/store/${restaurantId}`)) {
+-      await p.goto(`${DOORDASH_BASE_URL}/store/${restaurantId}`, {
 +    if (!currentUrl.includes(`/store/${restaurantId}`) || isRetailUrl(currentUrl)) {
-       await p.goto(`${DOORDASH_BASE_URL}/store/${restaurantId}`, {
++      await p.goto(storeUrl(restaurantId), {
          waitUntil: "domcontentloaded",
          timeout: DEFAULT_TIMEOUT,
        });
        await p.waitForTimeout(3000);
 +      // Grocery stores redirect to /convenience/store/:id a moment after the first load;
 +      // 5 s was too short on a slow load and fell through to the restaurant branch.
-+      await settleStorePage(p);
++      if (!isRetailUrl(p.url())) await settleStorePage(p, restaurantId);
      }
 -    
 +
@@ -170,7 +222,7 @@ index 8a376f3..1f38366 100644
      // Find and click the menu item by name
      const menuItem = p.locator(`button:has-text("${itemName}"), [role="button"]:has-text("${itemName}")`).first();
      await menuItem.waitFor({ timeout: 10000 });
-@@ -615,18 +740,45 @@ export async function addToCart(
+@@ -615,18 +756,45 @@ export async function addToCart(
  /**
   * Get current cart contents
   */
@@ -221,7 +273,7 @@ index 8a376f3..1f38366 100644
      const items: CartItem[] = [];
      
      // Find cart items - they usually contain price and quantity info
-@@ -670,6 +822,7 @@ export async function getCart(): Promise<{ success: boolean; items?: CartItem[];
+@@ -670,6 +838,7 @@ export async function getCart(): Promise<{ success: boolean; items?: CartItem[];
      return {
        success: true,
        items,
@@ -229,7 +281,7 @@ index 8a376f3..1f38366 100644
        subtotal: subtotalMatch ? parseFloat(subtotalMatch[1]) : 0,
        total: totalMatch ? parseFloat(totalMatch[1]) : 0,
      };
-@@ -684,26 +837,87 @@ export async function getCart(): Promise<{ success: boolean; items?: CartItem[];
+@@ -684,26 +853,87 @@ export async function getCart(): Promise<{ success: boolean; items?: CartItem[];
  /**
   * Place order (with confirmation step - returns order summary, doesn't actually place without confirmation)
   */
@@ -328,7 +380,7 @@ index 8a376f3..1f38366 100644
      const total = totalMatch ? parseFloat(totalMatch[1]) : 0;
      
      // Extract delivery info
-@@ -718,6 +932,8 @@ export async function placeOrder(
+@@ -718,6 +948,8 @@ export async function placeOrder(
        return {
          success: true,
          requiresConfirmation: true,
