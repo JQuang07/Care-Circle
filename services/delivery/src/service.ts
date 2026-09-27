@@ -65,7 +65,7 @@ export class DeliveryService {
     const items = Array.isArray(body?.items) ? body.items.filter((i) => i && typeof i.name === "string" && i.name.trim()) : [];
     if (!items.length) throw new ApiError(400, "BAD_REQUEST", "items[] with at least one { name, qty } is required");
     const store = await this.wrap(() => this.provider.findStore(kind, body.storeHint));
-    const catalog = await this.wrap(() => this.provider.catalog(store));
+    const catalog = await this.wrap(() => this.provider.catalog(store, items.map((i) => i.name)));
     const lines: QuoteLine[] = items.map((i) => {
       const qty = Math.max(1, Math.round(Number(i.qty) || 1));
       const c = classify(i.name, catalog);

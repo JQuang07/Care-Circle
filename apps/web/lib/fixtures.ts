@@ -24,7 +24,7 @@ const proposal = (to: string, body: string, minsAgo: number): Message => ({
 export const SAMPLE_MESSAGES: Record<string, Message[]> = {
   mem_lisa: [
     { id: "msg_fx_l1", toMemberId: "mem_lisa", direction: "out", kind: "receipt", createdAt: t(42),
-      body: "Rose's FreshMart order is paid: milk, wheat bread, eggs, bananas. $23.40.", mediaUrl: "#receipt" },
+      body: "Rose's Kroger order is paid: milk, wheat bread, eggs, bananas. $23.40.", mediaUrl: "#receipt" },
     { id: "msg_fx_l2", toMemberId: "mem_lisa", direction: "out", kind: "add_to_order", createdAt: t(41),
       body: "Mom just ordered groceries for Thursday. Want to add something? Her tomatoes came in this week.",
       actions: [
@@ -85,7 +85,7 @@ export const SAMPLE_ORDERS: Order[] = [
   },
   {
     id: "ord_fx_groc", seniorId: "sen_rose", status: "paid", createdAt: t(42), receiptUrl: "#receipt",
-    fulfilment: { provider: "mock", storeName: "FreshMart (demo)", quoteId: "q_fx", unmatchedItems: ["Saffron"],
+    fulfilment: { provider: "mock", storeName: "Kroger (demo)", quoteId: "q_fx", unmatchedItems: ["Saffron"],
       delivery: { deliveryId: "del_fx", status: "dry_run_complete", etaText: "25-35 min" } },
     request: { seniorId: "sen_rose", type: "groceries", merchantId: "mer_freshmart", amountCents: 2340,
       items: [{ name: "Milk", qty: 1 }, { name: "Wheat bread", qty: 1 }, { name: "Eggs", qty: 1 }, { name: "Bananas", qty: 1 }],

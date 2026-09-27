@@ -13,7 +13,8 @@ export interface Provider {
   findStore(kind: Kind, hint?: string): Promise<Store>;
   /** Fees + tax estimate added to the quote, so money charges what the cart will really cost. */
   estimateFeesCents(subtotalCents: number): number;
-  catalog(store: Store): Promise<Priced[]>;
+  /** `wanted`: item names to look up (grocery stores are searched per item). */
+  catalog(store: Store, wanted?: string[]): Promise<Priced[]>;
   /** Puts exactly these lines in the cart and returns the provider's own totals. */
   buildCart(store: Store, lines: { name: string; qty: number }[]): Promise<CartResult>;
   /** Checkout preview. Must NOT place an order. */

@@ -1,0 +1,360 @@
+diff --git a/src/browser.ts b/src/browser.ts
+index 8a376f3..8503cd0 100644
+--- a/src/browser.ts
++++ b/src/browser.ts
+@@ -419,8 +419,75 @@ export async function searchRestaurants(
+ /**
+  * Get restaurant menu
+  */
++/**
++ * Grocery and convenience stores redirect /store/:id to /convenience/store/:id and
++ * render products as retail cards whose aria-label reads "$1.69 , Name , 1 gallon".
++ * The visible price is split into separate spans, so the restaurant parser misses it.
++ */
++const RETAIL_CARD = '[data-testid="RetailItemCardCardContent"]';
++export const isRetailUrl = (url: string) => url.includes("/convenience/store/");
++
++/** Parses a retail card's aria-label: "$1.69 , Kroger Whole Milk , 1 gallon". */
++export function parseRetailLabel(label: string): { name: string; price: number; size: string } | null {
++  const parts = label.split(" , ").map((s) => s.trim());
++  const price = /^\$(\d+(?:\.\d{1,2})?)$/.exec(parts[0] ?? "");
++  if (!price || !parts[1]) return null;
++  return { price: parseFloat(price[1]), name: parts[1], size: parts.slice(2).join(", ") };
++}
++
++/** The cart icon and checkout only exist on DoorDash pages; a fresh tab is about:blank. */
++async function ensureOnDoorDash(p: Page): Promise<void> {
++  if (p.url().includes("doordash.com")) return;
++  await p.goto(DOORDASH_BASE_URL, { waitUntil: "domcontentloaded", timeout: DEFAULT_TIMEOUT });
++  await p.waitForTimeout(3000);
++}
++
++/** Types a query into the store's own "Search <store>" box and waits for result cards. */
++async function searchInStore(p: Page, query: string): Promise<void> {
++  const box = p.getByRole("searchbox", { name: /Search/i }).first();
++  await box.waitFor({ timeout: 10000 });
++  // The store home page uses the same cards, so wait for the list to change, then settle.
++  const snapshot = () =>
++    p.locator(RETAIL_CARD).evaluateAll((els) => els.map((e) => e.getAttribute("aria-label") || "").join("|"));
++  const before = await snapshot();
++  await box.click();
++  await box.fill("");
++  await box.fill(query);
++  await box.press("Enter");
++  // Lazy-loading home carousels also change the list, so "results arrived" means a card
++  // names one of the query's words (roughly stemmed) and the list has stopped changing.
++  const words = query.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 3)
++    .map((w) => (w.length > 4 && w.endsWith("es") ? w.slice(0, -2) : w.endsWith("s") ? w.slice(0, -1) : w));
++  const relevant = (s: string) => !words.length || words.some((w) => s.toLowerCase().includes(w));
++  let last = before;
++  let stable = 0;
++  for (let waited = 0; waited < 20000 && stable < 2; waited += 700) {
++    await p.waitForTimeout(700);
++    const now = await snapshot();
++    stable = now && now !== before && relevant(now) && now === last ? stable + 1 : 0;
++    last = now;
++  }
++}
++
++async function readRetailItems(p: Page, restaurantId: string, limit = 20): Promise<MenuItem[]> {
++  const labels = await p.locator(RETAIL_CARD).evaluateAll((els) =>
++    els.map((e) => e.getAttribute("aria-label") || "")
++  );
++  const items: MenuItem[] = [];
++  const seen = new Set<string>();
++  for (const label of labels) {
++    const parsed = parseRetailLabel(label);
++    if (!parsed || seen.has(parsed.name)) continue;
++    seen.add(parsed.name);
++    items.push({ id: `${restaurantId}-r${items.length}`, name: parsed.name, description: parsed.size, price: parsed.price });
++    if (items.length >= limit) break;
++  }
++  return items;
++}
++
+ export async function getMenu(
+-  restaurantId: string
++  restaurantId: string,
++  query?: string
+ ): Promise<{ success: boolean; restaurant?: string; categories?: MenuCategory[]; error?: string }> {
+   const p = await getPage();
+   const ctx = await getContext();
+@@ -431,10 +498,26 @@ export async function getMenu(
+       timeout: DEFAULT_TIMEOUT,
+     });
+     await p.waitForTimeout(4000);
+-    
++
+     // Get restaurant name from h1 or page content
+     const restaurantName = await p.locator('h1').first().textContent().catch(() => "") || "Unknown Restaurant";
+-    
++    if (!isRetailUrl(p.url())) await p.waitForURL(/\/convenience\/store\//, { timeout: 3000 }).catch(() => {});
++
++    // Grocery/convenience layout: search inside the store (a full catalogue is thousands of items).
++    if (isRetailUrl(p.url())) {
++      if (query) await searchInStore(p, query);
++      else {
++        for (let i = 0; i < 3; i++) { await p.mouse.wheel(0, 1200); await p.waitForTimeout(800); }
++      }
++      const items = await readRetailItems(p, restaurantId);
++      await saveCookies(ctx);
++      return {
++        success: true,
++        restaurant: restaurantName.trim(),
++        categories: items.length ? [{ name: query || "Items", items }] : [],
++      };
++    }
++
+     // Wait for menu items to load
+     await p.waitForTimeout(2000);
+     
+@@ -551,16 +634,47 @@ export async function addToCart(
+   const ctx = await getContext();
+ 
+   try {
+-    // Make sure we're on the restaurant page
++    // Make sure we're on the restaurant page. Grocery stores always reload: a cart drawer
++    // left open by doordash_cart would otherwise cover the store's search box.
+     const currentUrl = p.url();
+-    if (!currentUrl.includes(`/store/${restaurantId}`)) {
++    if (!currentUrl.includes(`/store/${restaurantId}`) || isRetailUrl(currentUrl)) {
+       await p.goto(`${DOORDASH_BASE_URL}/store/${restaurantId}`, {
+         waitUntil: "domcontentloaded",
+         timeout: DEFAULT_TIMEOUT,
+       });
+       await p.waitForTimeout(3000);
++      // Grocery stores redirect to /convenience/store/:id a moment after the first load.
++      await p.waitForURL(/\/convenience\/store\//, { timeout: 5000 }).catch(() => {});
+     }
+-    
++
++    // Grocery/convenience layout: find the product via the store search, then use its stepper.
++    if (isRetailUrl(p.url())) {
++      await searchInStore(p, itemName);
++      const cards = p.locator(RETAIL_CARD);
++      const labels = await cards.evaluateAll((els) => els.map((e) => e.getAttribute("aria-label") || ""));
++      const want = itemName.trim().toLowerCase();
++      let index = labels.findIndex((l) => parseRetailLabel(l)?.name.toLowerCase() === want);
++      if (index < 0) index = labels.findIndex((l) => parseRetailLabel(l)?.name.toLowerCase().includes(want));
++      if (index < 0) throw new Error(`No product named "${itemName}" in this store's search results`);
++      const card = cards.nth(index);
++      const qtyButton = card.locator('button[aria-label*="in cart"]').first();
++      const inCart = async () => Number(/^(\d+) in cart/.exec((await qtyButton.getAttribute("aria-label").catch(() => "")) || "")?.[1] ?? 0);
++      const start = await inCart();
++      await qtyButton.click();
++      await p.waitForTimeout(1500);
++      // The first click adds one; further units use the stepper's increase control.
++      for (let i = (await inCart()) - start; i < quantity; i++) {
++        const plus = card.locator('button[aria-label*="increase" i], button[aria-label*="add one" i], button[aria-label*="more" i]').first();
++        if (!(await plus.isVisible({ timeout: 2000 }).catch(() => false))) break;
++        await plus.click();
++        await p.waitForTimeout(700);
++      }
++      const added = (await inCart()) - start;
++      if (added < 1) throw new Error(`Clicked "${itemName}" but the cart count did not change`);
++      await saveCookies(ctx);
++      return { success: true, cartTotal: 0 };
++    }
++
+     // Find and click the menu item by name
+     const menuItem = p.locator(`button:has-text("${itemName}"), [role="button"]:has-text("${itemName}")`).first();
+     await menuItem.waitFor({ timeout: 10000 });
+@@ -615,18 +729,45 @@ export async function addToCart(
+ /**
+  * Get current cart contents
+  */
+-export async function getCart(): Promise<{ success: boolean; items?: CartItem[]; subtotal?: number; fees?: number; total?: number; error?: string }> {
++export async function getCart(): Promise<{ success: boolean; items?: CartItem[]; itemCount?: number; subtotal?: number; fees?: number; total?: number; error?: string }> {
+   const p = await getPage();
+   const ctx = await getContext();
+ 
+   try {
+-    // Click on cart to open it
+-    const cartButton = p.locator('button[aria-label*="cart"], button[aria-label*="Cart"]').first();
++    // A fresh browser tab is blank: the cart icon only exists on DoorDash pages.
++    await ensureOnDoorDash(p);
++    // Click on cart to open it (close anything already open first, so the click lands).
++    await p.keyboard.press("Escape").catch(() => {});
++    const cartButton = p.locator('[data-testid="OrderCartIconButton"], button[aria-label*="cart"], button[aria-label*="Cart"]').first();
+     if (await cartButton.isVisible({ timeout: 3000 }).catch(() => false)) {
+-      await cartButton.click();
++      await cartButton.click({ timeout: 10000 }).catch(() => {});
+       await p.waitForTimeout(2000);
+     }
+-    
++
++    // Current cart drawer (grocery and restaurant carts alike): rows are OrderCartItem
++    // list items; the Checkout header shows the items total.
++    // The header icon says "N items, open Order Cart": ground truth even if the drawer changes.
++    const iconLabel = await p.locator('[data-testid="OrderCartIconButton"]').first().getAttribute("aria-label", { timeout: 3000 }).catch(() => null);
++    const itemCount = iconLabel ? Number(/^(\d+) item/.exec(iconLabel)?.[1] ?? NaN) : undefined;
++    const drawer = p.locator('[data-testid="OrderCart"]').first();
++    if (await drawer.isVisible({ timeout: 3000 }).catch(() => false)) {
++      const parsed = await drawer.evaluate((root) => {
++        const money = (t: string) => parseFloat(/\$(\d+(?:\.\d{1,2})?)/.exec(t)?.[1] ?? "0");
++        const rows = [...root.querySelectorAll('[data-anchor-id="OrderCartItem"]')].map((r) => ({
++          name: (r.getAttribute("aria-label") || "").replace(/^click to open modal and edit item:\s*/i, "").trim(),
++          quantity: parseInt((r.querySelector('[data-testid="stepper-expanded-quantity"]')?.textContent || "1").replace(/\D/g, ""), 10) || 1,
++          price: money((r as HTMLElement).innerText || ""),
++        }));
++        const header = (root.querySelector('[data-testid="CartHeaderButtonSection"]') as HTMLElement | null)?.innerText || "";
++        return { rows, total: money(header) };
++      });
++      if (parsed.rows.length) {
++        await p.keyboard.press("Escape").catch(() => {});
++        await saveCookies(ctx);
++        return { success: true, items: parsed.rows, subtotal: parsed.total, total: parsed.total, itemCount };
++      }
++    }
++
+     const items: CartItem[] = [];
+     
+     // Find cart items - they usually contain price and quantity info
+@@ -670,6 +811,7 @@ export async function getCart(): Promise<{ success: boolean; items?: CartItem[];
+     return {
+       success: true,
+       items,
++      itemCount,
+       subtotal: subtotalMatch ? parseFloat(subtotalMatch[1]) : 0,
+       total: totalMatch ? parseFloat(totalMatch[1]) : 0,
+     };
+@@ -684,23 +826,60 @@ export async function getCart(): Promise<{ success: boolean; items?: CartItem[];
+ /**
+  * Place order (with confirmation step - returns order summary, doesn't actually place without confirmation)
+  */
++/**
++ * Empty the cart: open the drawer and press each row's remove button (at quantity 1 the
++ * stepper's decrement removes the row). For re-running dry runs; a person asks for it.
++ */
++export async function clearCart(): Promise<{ success: boolean; removed?: number; error?: string }> {
++  const p = await getPage();
++  const ctx = await getContext();
++  try {
++    await ensureOnDoorDash(p);
++    await p.keyboard.press("Escape").catch(() => {});
++    await p.locator('[data-testid="OrderCartIconButton"]').first().click({ timeout: 10000 });
++    const drawer = p.locator('[data-testid="OrderCart"]').first();
++    await drawer.waitFor({ timeout: 8000 }).catch(() => {});
++    let removed = 0;
++    for (let i = 0; i < 60; i++) {
++      const rows = await drawer.locator('[data-anchor-id="OrderCartItem"]').count().catch(() => 0);
++      if (!rows) break;
++      await drawer.locator('[data-testid="stepper-decrement-button"]').first().click({ timeout: 5000 });
++      removed++;
++      await p.waitForTimeout(900);
++    }
++    await p.keyboard.press("Escape").catch(() => {});
++    await saveCookies(ctx);
++    return { success: true, removed };
++  } catch (error) {
++    return { success: false, error: error instanceof Error ? error.message : "Failed to clear cart" };
++  }
++}
++
+ export async function placeOrder(
+   confirm: boolean = false
+-): Promise<{ success: boolean; orderId?: string; summary?: { items: CartItem[]; total: number; deliveryAddress?: string; estimatedDelivery?: string }; requiresConfirmation?: boolean; error?: string }> {
++): Promise<{ success: boolean; orderId?: string; summary?: { items: CartItem[]; total: number; deliveryAddress?: string; estimatedDelivery?: string }; requiresConfirmation?: boolean; stoppedAt?: string; error?: string }> {
+   const p = await getPage();
+   const ctx = await getContext();
+ 
+   try {
+-    // Navigate to checkout
+-    const checkoutButton = p.locator('button:has-text("Checkout"), a:has-text("Checkout")').first();
+-    if (await checkoutButton.isVisible({ timeout: 3000 }).catch(() => false)) {
+-      await checkoutButton.click();
+-      await p.waitForTimeout(3000);
++    await ensureOnDoorDash(p);
++    // Navigate to checkout: open the cart drawer if its Checkout button isn't showing, press it,
++    // and wait (bounded) for the checkout page. With confirm=false this is where it stops.
++    const checkoutButton = p.locator('[data-testid="CheckoutButton"], button:has-text("Checkout"), a:has-text("Checkout")').first();
++    if (!(await checkoutButton.isVisible({ timeout: 2000 }).catch(() => false))) {
++      await p.keyboard.press("Escape").catch(() => {});
++      await p.locator('[data-testid="OrderCartIconButton"]').first().click({ timeout: 10000 }).catch(() => {});
++      await p.waitForTimeout(1500);
+     }
+-    
+-    // Get order summary
++    if (await checkoutButton.isVisible({ timeout: 5000 }).catch(() => false)) {
++      await checkoutButton.click({ timeout: 10000 });
++      await p.waitForURL(/\/checkout/, { timeout: 20000 }).catch(() => {});
++      await p.waitForTimeout(2000);
++    }
++
++    // Get order summary (bounded: a slow checkout page must not hang the preview)
+     const items: CartItem[] = [];
+-    const pageText = await p.textContent('body') || "";
++    const pageText = await p.locator("body").innerText({ timeout: 10000 }).catch(() => "");
+     
+     // Extract total from page
+     const totalMatch = pageText.match(/Total[:\s]*\$(\d+\.?\d*)/i);
+@@ -718,6 +897,8 @@ export async function placeOrder(
+       return {
+         success: true,
+         requiresConfirmation: true,
++        // Where the dry run stopped (the checkout page when the Checkout click worked).
++        stoppedAt: p.url(),
+         summary: {
+           items,
+           total,
+diff --git a/src/index.ts b/src/index.ts
+index ea0ab16..a5ce71b 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -24,6 +24,7 @@ import {
+   getMenu,
+   addToCart,
+   getCart,
++  clearCart,
+   placeOrder,
+   trackOrder,
+   setAddress,
+@@ -158,6 +159,10 @@ const listTools = async () => {
+               type: "string",
+               description: "The restaurant ID (from search results)",
+             },
++            query: {
++              type: "string",
++              description: "Grocery/convenience stores only: search inside the store for this item instead of reading the whole catalogue",
++            },
+           },
+           required: ["restaurantId"],
+         },
+@@ -228,6 +233,11 @@ const listTools = async () => {
+           required: ["restaurantId"],
+         },
+       },
++      {
++        name: "doordash_clear_cart",
++        description: "Remove every item from the cart. Places nothing.",
++        inputSchema: { type: "object", properties: {} },
++      },
+       {
+         name: "doordash_track_order",
+         description:
+@@ -355,8 +365,8 @@ const callTool = async (request: CallToolRequest) => {
+       }
+ 
+       case "doordash_menu": {
+-        const { restaurantId } = args as { restaurantId: string };
+-        const result = await getMenu(restaurantId);
++        const { restaurantId, query } = args as { restaurantId: string; query?: string };
++        const result = await getMenu(restaurantId, query);
+         
+         return {
+           content: [
+@@ -433,6 +443,14 @@ const callTool = async (request: CallToolRequest) => {
+         };
+       }
+ 
++      case "doordash_clear_cart": {
++        const result = await clearCart();
++        return {
++          content: [{ type: "text", text: JSON.stringify(result) }],
++          isError: !result.success,
++        };
++      }
++
+       case "doordash_track_order": {
+         const { orderId } = args as { orderId?: string };
+         const result = await trackOrder(orderId);

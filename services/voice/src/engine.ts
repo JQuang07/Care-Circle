@@ -318,7 +318,7 @@ export class Engine {
   }
   pendingSummary(p: Pending) {
     const merchants: Record<string, string> = {
-      mer_freshmart: "FreshMart",
+      mer_freshmart: "Kroger",
       mer_cornerrx: "CornerRx",
       mer_crumb: "Sweet Crumb Bakery",
       mer_ridemock: "RideMock",

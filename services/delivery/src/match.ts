@@ -21,7 +21,7 @@ export function score(query: string, candidate: string): number {
   return Math.max(0, Math.min(1, s));
 }
 
-/** `staple` marks a store's house default for a generic word ("milk" → whole milk). Only the mock sets it. */
+/** `staple` marks the default for a generic word ("milk" → whole milk): the mock store's house pick, or the top hit of a DoorDash store search. */
 export interface Priced { name: string; priceCents: number; staple?: boolean }
 
 export function rank(query: string, items: Priced[]) {

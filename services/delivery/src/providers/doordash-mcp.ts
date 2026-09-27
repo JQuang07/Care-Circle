@@ -9,7 +9,7 @@
  */
 import type { Kind } from "../types.js";
 import type { Priced } from "../match.js";
-import { tokens } from "../match.js";
+import { score, tokens } from "../match.js";
 import { ProviderError, type CartResult, type Provider, type Store, type TrackStatus } from "./provider.js";
 
 export const REQUIRED_TOOLS = [
@@ -99,14 +99,32 @@ export class DoorDashMcpProvider implements Provider {
     });
   }
 
-  catalog(store: Store) {
+  /**
+   * Restaurants: one menu read. Grocery stores have thousands of products, so with `wanted`
+   * each item is looked up with the store's own search (`query`). Among the results that match
+   * the words best, the one DoorDash ranks first is marked `staple`, settling ties between
+   * near-identical products ("wheat bread") in the store's own order.
+   */
+  catalog(store: Store, wanted: string[] = []) {
     return this.run(async () => {
       await this.ready();
-      const res = await this.call("doordash_menu", { restaurantId: store.id });
-      const cats: any[] = Array.isArray(res?.categories) ? res.categories : [];
-      const items: Priced[] = cats.flatMap((c) => (Array.isArray(c?.items) ? c.items : []))
-        .filter((i: any) => i?.name && typeof i?.price === "number")
-        .map((i: any) => ({ name: String(i.name), priceCents: cents(i.price) }));
+      const read = (res: any): Priced[] =>
+        (Array.isArray(res?.categories) ? res.categories : [])
+          .flatMap((c: any) => (Array.isArray(c?.items) ? c.items : []))
+          .filter((i: any) => i?.name && typeof i?.price === "number")
+          .map((i: any) => ({ name: String(i.name), priceCents: cents(i.price) }));
+      const items: Priced[] = [];
+      const add = (list: Priced[], query?: string) => {
+        const best = query ? Math.max(0, ...list.map((it) => score(query, it.name))) : 0;
+        const pick = query && best >= 0.5 ? list.find((it) => score(query, it.name) === best) : undefined;
+        for (const it of list) {
+          if (items.some((x) => x.name === it.name)) continue;
+          items.push(it === pick ? { ...it, staple: true } : it);
+        }
+      };
+      for (const q of [...new Set(wanted.map((w) => w.trim()).filter(Boolean))])
+        add(read(await this.call("doordash_menu", { restaurantId: store.id, query: q })), q);
+      if (!items.length) add(read(await this.call("doordash_menu", { restaurantId: store.id })));
       if (!items.length) throw new ProviderError("EMPTY_MENU", `Couldn't read items for ${store.name}`);
       return items;
     });

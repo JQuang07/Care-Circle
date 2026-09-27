@@ -31,7 +31,7 @@ function fallback(request: OrderRequest): PricedOrder {
     return { ...item, priceCents: priceCents ?? 0 };
   });
   return { request: { ...request, items, amountCents: items.reduce((n, i) => n + i.qty * i.priceCents, 0) },
-    fulfilment: { provider: 'mock', storeName: 'FreshMart', unmatchedItems } };
+    fulfilment: { provider: 'mock', storeName: 'Kroger', unmatchedItems } };
 }
 
 export function httpDelivery(url: string, secret: string, log: (message: string) => void = () => {}, now = () => new Date()): DeliveryClient {

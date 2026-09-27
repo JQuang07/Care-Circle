@@ -4,7 +4,7 @@ import { ProviderError, type CartResult, type Provider, type Store, type TrackSt
 
 const $ = (d: number) => Math.round(d * 100);
 
-// What FreshMart hands you when Rose just says "milk" or "bread".
+// What the grocery store hands you when Rose just says "milk" or "bread".
 const STAPLES = new Set(["Whole Milk, 1 gal", "Whole Wheat Bread"]);
 
 const GROCERY: Priced[] = [
@@ -45,7 +45,7 @@ export class MockProvider implements Provider {
   async status() { return { connected: true, loggedIn: true, detail: "mock provider (no DoorDash)" }; }
 
   async findStore(kind: Kind, hint?: string): Promise<Store> {
-    if (kind === "grocery") return { id: "mock_freshmart", name: "FreshMart (demo)" };
+    if (kind === "grocery") return { id: "mock_freshmart", name: "Kroger (demo)" };
     const h = (hint ?? "").toLowerCase();
     return (RESTAURANTS.find((r) => h && r.store.name.toLowerCase().includes(h)) ?? RESTAURANTS[0]!).store;
   }
