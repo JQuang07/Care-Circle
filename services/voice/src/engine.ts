@@ -16,7 +16,7 @@ import { MockReasoner, type Reasoner } from "./reasoner.js";
 import { Store } from "./store.js";
 // Only confirmation language is accepted. Unknown trailing words fail closed,
 // so a leading yes cannot authorize an item, quantity, timing or recipient change.
-export const affirmative = (text: string) => {
+export const affirmative = (text: string, allowed: string[] = []) => {
   const normalized = text.trim().toLowerCase().replace(/[’]/g, "'");
   if (
     /\b(no|not|wait|don't|hold on|actually|never|stop|cancel)\b/.test(
@@ -30,15 +30,24 @@ export const affirmative = (text: string) => {
     )
   )
     return false;
+  // Exact phrases the offer itself used (e.g. the slot's "Sun 4:00 PM") may be echoed back.
+  let rest = normalized;
+  for (const phrase of allowed)
+    if (phrase) rest = rest.split(phrase.toLowerCase()).join(" ");
   return (
-    normalized
+    rest
       .replace(
-        /\b(that's everything|that is everything|that's right|go ahead|please do|(order|send) (it|them)|place (the|my) order|yes|yeah|okay|ok|sure|confirm|please|and|thank you|thanks)\b/g,
+        /\b(that's everything|that is everything|that's right|go ahead|please do|(order|send) (it|them)|place (the|my) order|with (the|my|that) order|sounds (lovely|good|great|perfect|wonderful|fine)|that works( for me)?|set it up|book it|yes|yeah|okay|ok|sure|confirm|please|and|thank you|thanks)\b/g,
         "",
       )
       .replace(/[.,!\s]/g, "") === ""
   );
 };
+/** Rose steps out of a "keep this between us" span only by saying so. */
+export const privateEnds = (text: string) =>
+  /^(anyway|anyhow|moving on|on another note|enough about that|back to)\b|you can share (this|that)/i.test(
+    text.trim(),
+  );
 export const negative = (text: string) =>
   /^(no|no thanks|cancel|never mind|nevermind|stop)[.!\s]*$/i.test(text.trim());
 export class Engine {
@@ -96,15 +105,22 @@ export class Engine {
   }
   async turn(s: Session, text: string) {
     assert(!s.endedAt, "CALL_ENDED", "This call has ended.");
+    if (s.privateStart && privateEnds(text)) {
+      // The span ends with the agent's acknowledgement; this turn is shareable again.
+      s.privateSpans.push({
+        startTs: s.privateStart,
+        endTs: s.transcript.at(-1)!.ts,
+      });
+      s.privateStart = undefined;
+    }
     const turn = this.add(s, "senior", text);
     if (
       /keep this between us|keep (this|that) private|don'?t share this/i.test(
         text,
       )
     ) {
+      // A privacy marker is not a change: an offer already read back stays pending.
       s.privateStart ||= turn.ts;
-      s.pending = undefined;
-      s.pendingDelivered = false;
       return this.say(
         s,
         "I’ll keep this part private from your family. What would you like to tell me?",
@@ -152,8 +168,9 @@ export class Engine {
       s.pending = undefined;
       s.pendingDelivered = false;
     }
+    let held: Pending | undefined;
     if (s.pending) {
-      if (affirmative(text)) {
+      if (affirmative(text, this.echoes(s.pending))) {
         if (!s.pendingDelivered)
           return this.say(
             s,
@@ -242,15 +259,26 @@ export class Engine {
         );
         return this.say(s, "Your family time is confirmed.");
       }
-      // Any change or ambiguous answer invalidates the old confirmation.
+      // Not a confirmation. A question or small talk keeps the offer (re-read below);
+      // anything that leads to a tool action is a change and invalidates it.
+      held = s.pending;
       s.pending = undefined;
       s.pendingDelivered = false;
     }
     const results: { name: string; result: unknown }[] = [];
     for (let step = 0; step < 5; step++) {
-      const decision = await this.reasoner.next(s, results);
-      if (!decision.actions.length)
+      const decision = await this.reasoner.next(s, results, held);
+      if (!decision.actions.length) {
+        if (held && step === 0) {
+          s.pending = held; // fresh playback required: pendingDelivered stays false
+          const summary = this.pendingSummary(held);
+          return this.say(
+            s,
+            decision.text ? `${decision.text} ${summary}` : summary,
+          );
+        }
         return this.say(s, decision.text || "Could you tell me a little more?");
+      }
       for (const action of decision.actions) {
         const result = await this.tool(s, action.name, action.args);
         if (typeof result === "object" && result !== null && "speak" in result)
@@ -291,7 +319,12 @@ export class Engine {
     }
     if (p.kind === "verification")
       return "Would you like me to call your family’s stored number to check together?";
-    return "Does that family time work for you?";
+    return p.label
+      ? `Your family proposed ${p.label}. Does that work for you?`
+      : "Does that family time work for you?";
+  }
+  echoes(p: Pending) {
+    return p.kind === "schedule" && p.label ? [p.label] : [];
   }
   async offerSchedule(s: Session, p: Proposal, slotId: string) {
     const slot = p.slots.find((slot) => slot.id === slotId);
@@ -300,12 +333,10 @@ export class Engine {
       "SLOT_NOT_READY",
       "Family must agree to a slot first.",
     );
-    s.pending = { kind: "schedule", proposalId: p.id, slotId };
+    const label = slot.localTimes[s.seniorId] || slot.startUtc;
+    s.pending = { kind: "schedule", proposalId: p.id, slotId, label };
     s.pendingDelivered = false;
-    return this.say(
-      s,
-      `Your family proposed ${slot.localTimes[s.seniorId] || slot.startUtc}. Does that work for you?`,
-    );
+    return this.say(s, this.pendingSummary(s.pending));
   }
   async tool(
     s: Session,

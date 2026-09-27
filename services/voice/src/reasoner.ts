@@ -1,12 +1,14 @@
 import OpenAI from "openai";
 import type { Config } from "./config.js";
-import type { Session } from "./types.js";
+import type { Pending, Session } from "./types.js";
 export type Action = { name: string; args: Record<string, unknown> };
 export type Decision = { text?: string; actions: Action[] };
 export interface Reasoner {
   next(
     session: Session,
     results: { name: string; result: unknown }[],
+    /** An offer already read back and still open; a reply without actions keeps it. */
+    pending?: Pending,
   ): Promise<Decision>;
 }
 const requestProperties = {
@@ -167,6 +169,7 @@ export class MockReasoner implements Reasoner {
   async next(
     s: Session,
     results: { name: string; result: unknown }[],
+    pending?: Pending,
   ): Promise<Decision> {
     if (results.length)
       return {
@@ -259,6 +262,8 @@ export class MockReasoner implements Reasoner {
     }
     if (/budget/i.test(text))
       return { actions: [{ name: "check_budget", args: {} }] };
+    // With an open offer, the engine re-reads it instead of changing the subject.
+    if (pending) return { actions: [] };
     return {
       actions: [],
       text: "I’m here to help. Would you like groceries or some time with your family?",

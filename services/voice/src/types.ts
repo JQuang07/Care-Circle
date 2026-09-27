@@ -111,7 +111,7 @@ export type Pending =
   | { kind: "order"; order: Order }
   | { kind: "unmatched"; order: Order }
   | { kind: "verification"; holdId: string; memberId: string }
-  | { kind: "schedule"; proposalId: string; slotId: string };
+  | { kind: "schedule"; proposalId: string; slotId: string; label?: string };
 export interface Session {
   callId: string;
   seniorId: string;
