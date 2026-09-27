@@ -69,7 +69,7 @@ export class MockProvider implements Provider {
     return { subtotalCents, totalCents: subtotalCents + 299, itemNames: priced.map((l) => l.name) }; // + mock delivery fee
   }
 
-  async preview() {
+  async preview(): Promise<{ totalCents?: number; etaText?: string }> {
     if (!this.cart) throw new ProviderError("EMPTY_CART", "Nothing in the cart");
     const sub = this.cart.lines.reduce((s, l) => s + l.priceCents * l.qty, 0);
     return { totalCents: sub + 299, etaText: "25-35 min" };

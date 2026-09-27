@@ -271,11 +271,19 @@ export default function Stage() {
       }
       if (d.status === "failed")
         return { key: id, tone: "alarm", title: "Delivery couldn't finish", body: d.failureReason ?? "See the delivery service log." };
+      // What the family card was actually charged: money settles to DoorDash's checkout total.
+      const f = ordersById[id]?.fulfilment;
+      const charged = f?.finalAmountCents ?? ordersById[id]?.request.amountCents;
+      const back = f?.returnedCents ? ` (${money(f.returnedCents)} back to the family card)` : "";
+      if (d.cartNote)
+        return { key: id, tone: "honey", title: `${store}: DoorDash cart didn't build`, body: `Dry run finished on the quote: charged ${money(charged)}, no real DoorDash total. ${d.cartNote.replace(/\s*dry run completed on quote prices\.?$/i, "")}` };
       return {
         key: id, tone: "leaf", title: `Ordered from ${store}`,
         body: d.provider === "doordash_thirdparty"
-          ? `DoorDash cart ${money(d.cartTotalCents)} · stopped at DoorDash checkout (DRY RUN, no charge).`
-          : `Cart ${money(d.cartTotalCents)} · mock delivery (DRY RUN, no charge).`,
+          ? d.checkoutTotalCents
+            ? `DoorDash total ${money(d.checkoutTotalCents)} · charged ${money(charged)}${back}. Stopped at DoorDash checkout (DRY RUN).`
+            : `DoorDash cart ${money(d.cartTotalCents)} (checkout total not shown) · charged ${money(charged)}. Stopped at checkout (DRY RUN).`
+          : `Cart ${money(d.cartTotalCents)} · charged ${money(charged)}${back} · mock delivery (DRY RUN).`,
       };
     });
 

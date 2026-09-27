@@ -115,6 +115,22 @@ describe("delivery · orders (money-gated)", () => {
     expect((await order(live.app, q3.quoteId)).json()).toMatchObject({ status: "failed", failureReason: expect.stringMatching(/Timeout/) });
   });
 
+  it("settles only to DoorDash's checkout total, never to the items-only cart total", async () => {
+    const withTotal = setup();
+    const q = (await withTotal.app.inject({ method: "POST", url: "/quote", headers: H, payload: groceries })).json();
+    const d = (await order(withTotal.app, q.quoteId)).json();
+    expect(withTotal.events.at(-1)).toMatchObject({ status: "dry_run_complete", cartTotalCents: d.checkoutTotalCents });
+
+    // The checkout page never showed a total (asked twice): no settlement amount is sent.
+    class NoTotal extends MockProvider { previews = 0; async preview() { this.previews++; return { etaText: "25-35 min" }; } }
+    const provider = new NoTotal();
+    const blind = setup({ provider });
+    const q2 = (await blind.app.inject({ method: "POST", url: "/quote", headers: H, payload: groceries })).json();
+    expect((await order(blind.app, q2.quoteId)).json().status).toBe("dry_run_complete");
+    expect(provider.previews).toBe(2);
+    expect(blind.events.at(-1)!.cartTotalCents).toBeUndefined();
+  });
+
   it("is idempotent per money order", async () => {
     const { app } = setup();
     const q = (await app.inject({ method: "POST", url: "/quote", headers: H, payload: groceries })).json();

@@ -69,6 +69,9 @@ export const OrderFulfilmentSchema = z.object({
   storeName: z.string(),
   quoteId: z.string().optional(),
   unmatchedItems: z.array(z.string()),
+  /** Settled to DoorDash's checkout total (never above the charge); the difference went back. */
+  finalAmountCents: z.number().int().optional(),
+  returnedCents: z.number().int().optional(),
   delivery: z
     .object({
       deliveryId: z.string(),
@@ -354,6 +357,8 @@ export const DeliveryOrderSchema = z.object({
   etaText: z.string().optional(),
   failureReason: z.string().optional(),
   confirmedBy: z.string().optional(),
+  cartNote: z.string().optional(),
+  checkoutTotalCents: z.number().int().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });

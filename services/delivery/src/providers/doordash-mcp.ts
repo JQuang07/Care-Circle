@@ -193,9 +193,7 @@ export class DoorDashMcpProvider implements Provider {
       if (full(before)) {
         throw new ProviderError("CART_NOT_EMPTY", "The DoorDash cart already has items. Empty it with `pnpm dd:check -- --clear-cart` first.");
       }
-      for (const l of lines) {
-        await this.call("doordash_add_to_cart", { restaurantId: store.id, itemName: l.name, quantity: l.qty });
-      }
+      for (const l of lines) await this.addLine(store, l);
       const cart = await this.call("doordash_cart");
       const got: any[] = Array.isArray(cart?.items) ? cart.items : [];
       // Every requested line must be in the cart, and nothing else.
@@ -207,6 +205,30 @@ export class DoorDashMcpProvider implements Provider {
       }
       return { subtotalCents: cents(cart?.subtotal), totalCents: cents(cart?.total), itemNames: got.map((i) => String(i.name)) };
     });
+  }
+
+  /**
+   * One cart line. A grocery store's page redirects to its grocery layout seconds after it
+   * loads; if the add ran before that, nothing was clicked. Retry once, and only when the cart
+   * shows the item did not land (an add is never repeated blindly), after the store search has
+   * re-opened the page and waited for the redirect.
+   */
+  private async addLine(store: Store, l: { name: string; qty: number }) {
+    const add = () => this.call("doordash_add_to_cart", { restaurantId: store.id, itemName: l.name, quantity: l.qty });
+    try {
+      await add();
+    } catch (e) {
+      const now = await this.call("doordash_cart");
+      const rows: any[] = Array.isArray(now?.items) ? now.items : [];
+      const want = tokens(l.name).join(" ");
+      const landed = rows.some((i) => { const h = tokens(String(i?.name ?? "")).join(" "); return h === want || h.includes(want) || want.includes(h); });
+      // Rows hidden but a subtotal showing: can't tell what landed, so don't risk a double add.
+      const unknown = !rows.length && typeof now?.subtotal === "number" && now.subtotal > 0;
+      if (landed) return;
+      if (unknown) throw e;
+      await this.call("doordash_menu", { restaurantId: store.id, query: l.name });
+      await add();
+    }
   }
 
   preview() {

@@ -51,6 +51,7 @@ export interface Order {
 /** D9 · How a groceries/meal order is being fulfilled (mirrors delivery's DeliveryOrder). */
 export interface OrderFulfilment {
   provider: DeliveryProvider; storeName: string; quoteId?: string; unmatchedItems: string[];
+  finalAmountCents?: number; returnedCents?: number;   // settled to DoorDash's checkout total
   delivery?: { deliveryId: string; status: DeliveryStatus; etaText?: string; trackingUrl?: string; failureReason?: string };
 }
 
@@ -227,6 +228,7 @@ export interface DeliveryOrder {
   storeName: string;
   externalOrderId?: string; trackingUrl?: string; etaUtc?: string; etaText?: string;
   failureReason?: string; confirmedBy?: string;
+  cartNote?: string; checkoutTotalCents?: number;
   createdAt: string; updatedAt: string;
 }
 

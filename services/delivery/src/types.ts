@@ -31,5 +31,7 @@ export interface DeliveryOrder {
   failureReason?: string; confirmedBy?: string;
   /** Dry run only: why the DoorDash cart itself wasn't built (the dry run finished on quote prices). */
   cartNote?: string;
+  /** DoorDash's checkout total (items + fees + tax), when its checkout page showed one. Settles the charge. */
+  checkoutTotalCents?: number;
   createdAt: string; updatedAt: string;
 }

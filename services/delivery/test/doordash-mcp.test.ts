@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DoorDashMcpProvider, REQUIRED_TOOLS, resilient, type ToolCaller } from "../src/providers/doordash-mcp";
 
 /** A fake of the davidgibbons/striderlabs DoorDash MCP server's tool results. */
-function fakeServer(o: { loggedIn?: boolean; tools?: string[]; startCart?: any[]; hiddenRows?: boolean } = {}) {
+function fakeServer(o: { loggedIn?: boolean; tools?: string[]; startCart?: any[]; hiddenRows?: boolean; failAdds?: number } = {}) {
   const calls: { name: string; args: any }[] = [];
   let cart: any[] = o.startCart ?? [];
   const tools = o.tools ?? [...REQUIRED_TOOLS, "doordash_set_address"];
@@ -15,7 +15,10 @@ function fakeServer(o: { loggedIn?: boolean; tools?: string[]; startCart?: any[]
         case "doordash_set_address": return { success: true };
         case "doordash_search": return { success: true, restaurants: [{ id: "store_42", name: "Safeway" }] };
         case "doordash_menu": return { success: true, categories: [{ name: "Dairy", items: [{ id: "1", name: "Whole Milk 1 gal", price: 4.29 }, { id: "2", name: "Bananas", price: 1.89 }] }] };
-        case "doordash_add_to_cart": cart.push({ name: args.itemName, quantity: args.quantity, price: 0 }); return { success: true };
+        case "doordash_add_to_cart":
+          // A grocery page that hadn't redirected yet: the add fails before anything is clicked.
+          if (o.failAdds && o.failAdds-- > 0) return { success: false, error: "locator.waitFor: Timeout 10000ms exceeded." };
+          cart.push({ name: args.itemName, quantity: args.quantity, price: 0 }); return { success: true };
         case "doordash_cart": return { success: true, items: o.hiddenRows ? [] : cart, subtotal: cart.length ? 6.18 : 0, total: cart.length ? 9.99 : 0 };
         case "doordash_clear_cart": cart = []; o.hiddenRows = false; return { success: true, removed: 1 };
         case "doordash_checkout": return args.confirm ? { success: true, orderId: "dd_987", summary: { total: 9.99 } } : { success: true, requiresConfirmation: true, summary: { total: 9.99, estimatedDelivery: "30-40 min" } };
@@ -53,6 +56,20 @@ describe("DoorDash MCP provider (tool mapping)", () => {
     // On the checkout page the rows are hidden; a non-zero subtotal still means "not empty".
     const live = new DoorDashMcpProvider(fakeServer({ startCart: [{ name: "Pizza", quantity: 1 }], hiddenRows: true }).caller, { defaultGroceryStore: "grocery" });
     await expect(live.buildCart({ id: "store_42", name: "Safeway" }, [{ name: "Bananas", qty: 1 }])).rejects.toThrow(/already has items/);
+  });
+
+  it("retries a failed add once, after re-opening the store, only when the item did not land", async () => {
+    const { caller, calls } = fakeServer({ startCart: [{ name: "Old Bananas", quantity: 1 }], failAdds: 1 });
+    const p = new DoorDashMcpProvider(caller, { defaultGroceryStore: "grocery", clearStaleCart: true });
+    const cart = await p.buildCart({ id: "store_42", name: "Safeway" }, [{ name: "Whole Milk 1 gal", qty: 1 }, { name: "Bananas", qty: 1 }]);
+    expect(cart.itemNames).toEqual(["Whole Milk 1 gal", "Bananas"]);
+    const names = calls.map((c) => c.name);
+    expect(names.filter((n) => n === "doordash_add_to_cart")).toHaveLength(3);
+    expect(names.indexOf("doordash_menu")).toBeLessThan(names.lastIndexOf("doordash_add_to_cart"));
+
+    // Two failures in a row: no third attempt, the error reaches the caller.
+    const twice = new DoorDashMcpProvider(fakeServer({ failAdds: 2 }).caller, { defaultGroceryStore: "grocery" });
+    await expect(twice.buildCart({ id: "store_42", name: "Safeway" }, [{ name: "Bananas", qty: 1 }])).rejects.toThrow(/Timeout/);
   });
 
   it("refuses a cart that already has someone else's items", async () => {

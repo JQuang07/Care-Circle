@@ -121,9 +121,15 @@ export class DeliveryService {
     const store = this.stores.get(quote.storeId) ?? { id: quote.storeId, name: quote.storeName };
     try {
       const cart = await this.provider.buildCart(store, lines);
-      const preview = await this.provider.preview();
+      // The checkout page is the only place DoorDash shows fees and tax. It loads slowly, so
+      // a preview without a total is asked once more (a preview never places an order).
+      let preview = await this.provider.preview();
+      if (preview.totalCents === undefined) preview = await this.provider.preview().catch(() => preview);
       const total = Math.max(cart.totalCents, preview.totalCents ?? 0);
       d.cartTotalCents = total;
+      // Only DoorDash's own checkout total may settle the charge; the cart's items-only total
+      // would undercharge (no fees). Without it, money keeps the approved amount.
+      d.checkoutTotalCents = preview.totalCents;
       d.etaText = preview.etaText;
       // Gate 2: the cart can't cost more than money approved (+ tolerance), nor more than the hard cap.
       const ceiling = Math.floor(approved * (1 + this.cfg.tolerancePct / 100));
@@ -211,7 +217,7 @@ export class DeliveryService {
     d.status = status; d.updatedAt = nowIso();
     this.emit({ deliveryId: d.deliveryId, orderId: d.orderId, seniorId: d.seniorId, storeName: d.storeName, status, etaUtc: d.etaUtc, etaText: d.etaText, trackingUrl: d.trackingUrl, failureReason: d.failureReason,
       // The real cart total once built: money settles the charge to it (it charged the quote's fee estimate).
-      ...(d.cartTotalCents > 0 ? { cartTotalCents: d.cartTotalCents, approvedAmountCents: d.approvedAmountCents } : {}) });
+      ...(d.checkoutTotalCents ? { cartTotalCents: d.checkoutTotalCents, approvedAmountCents: d.approvedAmountCents } : {}) });
     return d;
   }
 
