@@ -1,140 +1,235 @@
 # Care Circle
 
-A phone helper for Rose (81). She orders groceries by voice, her family stays in the loop on WhatsApp, and every purchase goes through a four-layer scam check before any money moves. It also books family video calls that ring her regular phone.
+Care Circle is a phone helper for Rose, who is 81. She talks to it the way she would talk to a person:
 
-The shared interfaces are in [`CONTRACTS.md`](CONTRACTS.md) and [`docs/CONTRACTS-ADDENDUM.md`](docs/CONTRACTS-ADDENDUM.md). Where the two disagree, the addendum wins.
+- She orders groceries by voice, and they are priced and ordered through DoorDash (dry run by default).
+- Every purchase goes through a four-layer scam check before any money moves.
+- Her family (Lisa, Danny, Mark) sees what happens on their phones and can step in when something looks wrong.
+- It books family video calls at times that suit everyone, and rings Rose when it is time.
 
-## Architecture
+This guide explains how to install it, start it, and use it. The shared interfaces live in [`CONTRACTS.md`](CONTRACTS.md) and [`docs/CONTRACTS-ADDENDUM.md`](docs/CONTRACTS-ADDENDUM.md); where they disagree, the addendum wins.
 
-Five services and a web app, one Postgres. Each service writes only its own schema and reaches the others over HTTP.
+---
 
-```mermaid
-flowchart LR
-  Rose(["Rose<br/>phone or tablet"]) --> voice
-  voice["voice :4001<br/>calls, Muse, D16 confirm"] -->|orders, holds| money
-  voice -->|circle, scheduling| family
-  money["money :4002<br/>4-layer fraud check, payments"] -->|quote, fulfil paid orders| delivery
-  money -->|order.paid, fraud.hold events| family
-  delivery["delivery :4004<br/>the only path to DoorDash"] -->|delivery-status events| money
-  delivery -->|delivery-status events| family
-  family["family :4003<br/>WhatsApp mock, hooks, scheduling"] -->|scheduled_call.due| voice
-  family -->|rooms, join tokens| livekit[("LiveKit")]
-  web["web :3000<br/>phones, dashboard, demo panel"] -->|"/api/svc proxy<br/>adds X-CC-Secret"| voice & money & family & delivery
-  voice & money & family & delivery --- db[("Postgres<br/>one schema each")]
-```
+## 1. What you need
 
-| Service | Port | Owns |
+| Tool | Version | Notes |
 |---|---|---|
-| **voice** | 4001 | Rose's calls (Twilio, Deepgram, Muse). Builds orders from what she says and only buys after a clear "yes" (D16). Runs verification calls to a family member's stored number. |
-| **money** | 4002 | The fraud engine: layer 1 hard rules (deterministic, never overridden by a model), layer 2 scam-story classifier, layer 3 "unusual for Rose", layer 4 family patterns. Holds, cooling-off, passkey release, payments. |
-| **family** | 4003 | The circle, the WhatsApp-style messages, post-call hooks and nudges, fraud cards, contact rhythm, scheduling, and LiveKit rooms. |
-| **delivery** | 4004 | Grocery quotes and fulfilment. It only fulfils orders money has already approved **and** charged, and checks the cart against the approved amount and a cap. |
-| **web** | 3000 | Everything on screen. The browser never talks to a service directly: `/api/svc` checks an allowlist and adds the shared secret on the server. |
+| Node.js | 22.12 or newer | `node -v` to check |
+| pnpm | 10 | `npm install -g pnpm`, or `corepack enable` |
+| Docker Desktop | any recent | Runs the Postgres database. Start it once and wait until it says it is running |
+| Git | any recent | |
+| Chrome or Edge | any recent | Needed for the microphone on the demo page |
 
-**A grocery order, end to end:** Rose asks → voice builds the list → money prices it from a delivery quote → fraud check → Rose confirms the read-back → money pays → delivery builds the cart (a dry run by default) → the family's phones show the order, the store, and the delivery status.
+On Windows, if Postgres is already installed natively it will block Docker's port 5432. Stop it once from an administrator command prompt: `net stop postgresql-x64-16` (and `postgresql-x64-17` if present).
 
-## Run it
+---
 
-You need Node 22.12+, pnpm 10 (`corepack enable`), and Docker.
+## 2. Install
 
 ```bash
+git clone https://github.com/JQuang07/Care-Circle.git
+cd Care-Circle
 pnpm install
-cp .env.example .env          # set CC_INTERNAL_SECRET (≥24 chars, same for the whole team); MOCK=1 needs no other keys
-docker compose up -d --wait   # Postgres with the voice/money/family/web schemas
-pnpm seed                     # family → money → delivery → voice
-pnpm dev                      # all five, labeled output
-pnpm health                   # in a second terminal: expect five green rows
 ```
 
-Keep `MOCK=1`, `MOCK_DEPENDENCIES=0`, `DELIVERY_PROVIDER=mock`, and `DOORDASH_LIVE_CHECKOUT=0` unless you are on the demo laptop. Never add `PORT=` to `.env`. Per-teammate setup is in [`docs/agents/COMMON-SETUP.md`](docs/agents/COMMON-SETUP.md).
+Create your settings file from the example:
 
-Then open http://localhost:3000.
+```bash
+cp .env.example .env       # macOS / Linux
+copy .env.example .env     # Windows CMD
+```
 
-| Page | What it is |
+Open `.env` and set at least:
+
+| Key | What to put |
 |---|---|
-| `/family` | Lisa's, Danny's, and Mark's phones: the WhatsApp-style chat with Care Circle, including where the groceries are |
-| `/dashboard` | Rose's week, paused purchases, recent orders with delivery status, and "See how we decided" (all four fraud layers) |
-| `/demo` | Recording controls: each scenario without a real phone, fast-forward to the next call, the DoorDash quote table, and "Reset all data" |
-| `/call/:id` | The family video room (LiveKit). `?member=mem_lisa` joins as Lisa |
-| `/tablet` | Plan B for Rose: one big button, auto-answers only calls from her own schedule |
+| `CC_INTERNAL_SECRET` | Any string of 24 or more characters. Everyone on the team must use the same one. Voice refuses to start if it is shorter |
+| `MOCK` | Leave at `1`. This fakes the outside providers (Twilio, payments, LiveKit) so nothing real is charged or dialled |
+| `META_API_KEY` | Optional but recommended. Turns on Muse for understanding Rose and for speech-to-text. Without it, a simple keyword bot and the clip transcripts are used |
+| `MUSE_MODEL` | `muse-spark-1.3` |
+| `DEEPGRAM_API_KEY` | Optional. Gives Care Circle a natural spoken voice and a backup speech-to-text |
 
-## Run the demo
+Leave these as they are unless you are on the demo laptop: `MOCK_DEPENDENCIES=0`, `DELIVERY_PROVIDER=mock`, `DOORDASH_LIVE_CHECKOUT=0`. Never add a `PORT=` line; each service has its own fixed port.
 
-Everything runs on one machine. No phone line, Twilio, tunnel or LiveKit is needed.
+---
 
-1. **`.env` keys:**
-   - `CC_INTERNAL_SECRET` (≥24 chars) and `MOCK=1`. Here `MOCK=1` fakes only Twilio, LiveKit and payments.
-   - `META_API_KEY` with `MUSE_MODEL=muse-spark-1.3`. This key drives both Muse reasoning and Muse Voice Transcribe. Without it, voice falls back to the keyword bot and the `.txt` transcripts.
-   - Optional: `DEEPGRAM_API_KEY`, to transcribe mp3/m4a clips.
-   - Optional: `VOICE_REASONER=mock` forces the keyword bot, and `MUSE_TIMEOUT_MS` sets the Muse timeout (default 12000).
-   - DoorDash: `DELIVERY_PROVIDER=doordash_thirdparty` with `DOORDASH_MCP_URL`, `DOORDASH_MCP_TOKEN` (the same token the MCP server was started with), `DOORDASH_DROPOFF_ADDRESS`, `DOORDASH_GROCERY_STORE` and **`DOORDASH_LIVE_CHECKOUT=0`**. Or use `DELIVERY_PROVIDER=mock`. Check the DoorDash setup with `pnpm dd:check`.
-2. **Start it:** `docker compose up -d --wait`, `pnpm seed`, `pnpm dev`, then `pnpm health` (5 green).
-3. **Clips:** `demo-audio/<scenario>/01.wav, 02.wav, …`, each with a same-name `.txt` transcript. To replace a clip, record over it with the same name and update the `.txt`.
-   - WAV at 16 kHz mono goes straight to Muse. Other formats are converted in the browser, or sent to Deepgram.
-   - A transcript that starts with `mem_danny:` is spoken by Danny on the check-in call.
-4. **Open http://localhost:3000/stage.**
-   - Pick a scenario and press ▶ on each clip in order. The clip plays, is transcribed, Muse answers aloud, and event cards appear.
-   - Lisa's and Danny's phones on the right update live. In "Family call", tap the same time on both phones after clip 1.
-   - **🎙 Speak** records from the demo computer's microphone: press it, talk, press it again to send. Choose "as Rose", or "as Danny" for the check-in call after a scam hold. Muse Voice Transcribe turns the audio into text (Deepgram is the backup). The mic only works at `http://localhost:3000`: browsers block microphones on plain-HTTP LAN addresses. Allow the mic when the browser asks.
-   - **Reset demo** restores every service to the seed.
-5. **Without a browser:** `pnpm demo:run all` (add `--text` to skip the audio). It prints each transcript, reply and event, then checks the end state.
+## 3. Start it
 
-| Scenario | What should happen |
-|---|---|
-| Groceries | Priced by the delivery quote → paid → delivery DRY RUN cart → Lisa gets "add to order" |
-| Family call | A proposal goes to Lisa and Danny → they tap a time → Rose says yes → the call is scheduled (shown as a card) |
-| Scam call | High-risk hold → fraud card to Danny → check-in call → Danny says cancel → hold cancelled. Rose is never scolded |
-| Mia's gift | Low risk, sent through Lisa (D7) → paid |
+```bash
+docker compose up -d --wait   # start the database
+pnpm seed                     # load Rose, her family, the stores, and her history
+pnpm dev                      # start all five parts; leave this window open
+```
 
-**DoorDash is an unofficial third-party integration: dry run only.** No real DoorDash order is placed in the demo.
+In a second terminal, check that everything is up:
 
-## What's real and what's simulated
+```bash
+pnpm health
+```
 
-With the team default (`MOCK=1`, `MOCK_DEPENDENCIES=0`), all five services run their real code and call each other over HTTP. `MOCK=1` only fakes the **outside** providers (D15).
+You should see five green rows: voice, money, family, delivery, and web. The web row can take about 30 seconds the first time.
 
-| Piece | In the demo (`MOCK=1`) | With real providers |
+Then open **http://localhost:3000** in Chrome or Edge.
+
+### Every day after that
+
+```bash
+docker compose up -d --wait
+pnpm dev
+```
+
+---
+
+## 4. Using the app
+
+The bar at the top of every page links to the main screens.
+
+| Page | Address | What it is for |
 |---|---|---|
-| Rose's phone call | Text-driven: `/demo` plays her side of the call as text | Twilio number + media stream; Deepgram speech in and out |
-| Understanding Rose (Muse) | Scripted fixtures in voice; deterministic fallbacks in money and family | Meta Muse (`META_API_KEY`); money and family keep deterministic fallbacks if Muse fails |
-| Fraud engine | **Real.** All four layers run; layer 1 hard stops are plain code | Same |
-| Payments | Mock charge and receipt | Stripe test mode (a Visa slot exists) |
-| WhatsApp | Simulated: the `/family` page shows the messages family would get | Not connected. No real WhatsApp messages are sent |
-| Passkey release | Simulated, and labeled as simulated on screen | Not wired to real WebAuthn |
-| Family video calls | Real LiveKit if a server is configured; otherwise a labeled "simulated video room" | LiveKit Cloud, or `livekit-server --dev` on :7880 |
-| Rose joining a family call | Plan B `/tablet` page | LiveKit SIP dial-out to her phone (needs a SIP trunk) |
-| Grocery store and delivery | Built-in demo store; dry run; `/demo/advance` simulates the Dasher | DoorDash through a third-party MCP server (below) |
-| Merchants, order history, call history | Seed data (fixed IDs in `CONTRACTS.md` §2) | Same seed data |
+| Stage | `/stage` | The main demo screen. Rose's side of the phone call on the left, Lisa's and Danny's phones on the right, all live |
+| Family phones | `/family` | Lisa's, Danny's, and Mark's phones on their own, with the passkey step for releasing a paused purchase |
+| Rose's week | `/dashboard` | Calls, paused purchases, recent orders and their delivery status, and "See how we decided" for each fraud check |
+| Rose's tablet | `/tablet` | A backup for Rose: one large button that answers only calls from her own schedule |
+| Demo controls | `/demo` | Run each scenario as text, fast-forward to the next family call, try a DoorDash quote, view fraud eval results, reset all data |
+| Family call | `/call/<id>?member=mem_lisa` | The family video room. The link arrives on the family phones when a call is booked |
 
-### DoorDash is an unofficial integration
+### The Stage page, step by step
 
-Care Circle reaches DoorDash through **an unofficial, third-party** MCP server ([davidgibbons/mcp-doordash](https://github.com/davidgibbons/mcp-doordash)), not a DoorDash API or partnership. Only the delivery service talks to it, and only on the demo laptop.
+1. **Pick a scenario** with the tabs at the top: Groceries, Family call, Scam call, or Mia's gift.
+2. **Play the clips in order.** Each row is one thing Rose says. Press the round play button on the first row. The clip plays out loud, then:
+   - her words appear in the conversation as soon as they are transcribed,
+   - a label under the conversation shows whether Care Circle is transcribing, thinking, or speaking,
+   - Care Circle answers out loud, and its reply appears on the right side of the conversation.
+3. **Watch the phones.** Lisa's and Danny's phones update by themselves. Buttons on the phones work: tap a time slot, cancel a hold, and so on.
+4. **Read the cards below the conversation.** Each card is one thing that happened, such as "Order paid", "Hold placed", or "Ordered from Kroger". A grocery card shows the DoorDash total, what was charged, and anything returned to the family card.
+5. **Start over** with "New call" (keeps the data, clears the conversation) or "Reset demo" (puts every service back to the starting data).
 
-- **Dry run is the default.** The cart is built and priced, but nothing is ordered or charged. The web shows a **DRY RUN** badge on every delivery unless live checkout is on.
-- **At most one real order, confirmed by a person.** Live checkout needs the real provider, `DOORDASH_LIVE_CHECKOUT=1`, an order money has already fraud-checked and paid, and a person in `/demo` who types their name and `PLACE REAL ORDER`. The web server checks that phrase again before forwarding, and delivery places each order at most once.
-- It uses a dedicated account with a low-limit card, a cart cap (`DOORDASH_MAX_ORDER_CENTS`), and a price-drift limit. Tokens, cookies, and `.env` are never committed.
+**Speaking live instead of playing clips.** Press **Speak**, say the sentence, and press it again to send. Choose "as Rose", or "as Danny (check-in call)" to answer a verification call after a scam hold. If nothing is heard, pick another microphone from the Mic list; the Level bar shows whether the microphone hears you. The browser only allows the microphone on `http://localhost:3000`, so open the demo on the same computer that runs it.
 
-Setup steps: [`services/delivery/README.md`](services/delivery/README.md).
+**Typing instead of speaking.** Type in "Or type what Rose says" and press Say.
 
-## Tests
+### What each scenario should do
 
-| Command | What it proves |
+| Scenario | What happens |
 |---|---|
-| `pnpm e2e` | The cross-service scenarios, against the running services: reset, grocery → delivery → "arrived", scheduling → call rings, grandparent scam held and cancelled, Mia's gift passes, "keep this between us" never reaches family. **Refuses to run unless delivery is on the mock provider.** |
-| `pnpm e2e:10` | The freeze gate: ten passing runs in a row |
-| `pnpm e2e:selftest` | The tests themselves are sound, checked against an in-memory fake of all five services on ports 5001–5004 |
-| `pnpm e2e:file` | Files the last run's failures into the owners' status files (`--write` to apply) |
-| `pnpm typecheck` | Every package typechecks, including the guard that keeps the contract types and zod schemas in sync |
+| Groceries | Rose asks for milk, bananas, and bread. Care Circle reads back the items, store, and price. When she says yes, the order is paid, DoorDash builds the cart (dry run), and Lisa gets a message asking if she wants to add anything |
+| Family call | Rose asks to see the family. Lisa and Danny each get three suggested times. After clip 1, tap the **same** time on both phones, then play clip 2, where Rose agrees. The call is booked and the join links are sent |
+| Scam call | A caller claiming to be her grandson asks for gift cards. The purchase is held, nothing is paid, and Danny gets a card explaining why. Danny answers the check-in call, says it was not him, and the hold is cancelled. Rose is never scolded |
+| Mia's gift | Rose buys a birthday gift for her granddaughter Mia. It goes through Lisa (Mia is a child and is never contacted directly), passes as low risk, and is paid |
 
-When `pnpm e2e` fails, it writes `e2e/reports/latest.md`, with each failure grouped under the agent who owns it and the request and response that failed.
+### Confirming a purchase
 
-## Layout and team
+Care Circle only buys after Rose clearly agrees. A reply confirms when it starts with yes (or yeah, okay, sure, go ahead), contains no "no", "wait", "not", or "actually", and adds nothing new. For example:
 
-| Path | Owner |
+- "Yes please. Thank you so much." confirms.
+- "Yes, but add eggs." does not; Care Circle updates the order and reads it back again.
+
+### Family phones and paused purchases
+
+When a purchase is paused, the verifiers (Lisa and Danny) get a red "Purchase paused" card listing the reasons. From the card they can:
+
+- **Cancel** the purchase. This never needs a passkey.
+- **Release** it. For a high-risk purchase this requires the passkey step on `/family`.
+- **Call Rose** to check with her first.
+
+---
+
+## 5. Running it without a browser
+
+```bash
+pnpm demo:run all           # plays every scenario's clips through the real services
+pnpm demo:run all --text    # the same, using the text transcripts instead of audio
+```
+
+It prints each transcript, reply, and event, then checks the final state.
+
+---
+
+## 6. Groceries and DoorDash
+
+By default, groceries use a built-in demo store and nothing leaves your computer.
+
+To price and build real DoorDash carts on the demo laptop, see [`services/delivery/README.md`](services/delivery/README.md). In short: run the third-party DoorDash MCP server outside this repository, then set in `.env`:
+
+```
+DELIVERY_PROVIDER=doordash_thirdparty
+DOORDASH_MCP_URL=http://127.0.0.1:3100/mcp
+DOORDASH_MCP_TOKEN=<the token the MCP server was started with>
+DOORDASH_DROPOFF_ADDRESS=<delivery address>
+DOORDASH_GROCERY_STORE=<a store near that address>
+DOORDASH_LIVE_CHECKOUT=0
+```
+
+Check the connection with `pnpm dd:check`, then restart `pnpm dev`.
+
+**This is an unofficial third-party integration and it runs as a dry run.** The cart is built and priced, and the process stops at DoorDash's checkout page. Nothing is ordered and nothing is charged. A real order needs `DOORDASH_LIVE_CHECKOUT=1`, an order the money service has already checked and paid, and a person on `/demo` typing their name and `PLACE REAL ORDER`. The cart is also checked against the approved amount and a hard cap (`DOORDASH_MAX_ORDER_CENTS`).
+
+Notes on the dry run:
+
+- Before building, the dry run empties whatever the previous rehearsal left in the DoorDash cart.
+- Rose approves an estimate (items plus estimated fees). Once DoorDash shows its real checkout total, the charge is lowered to that total and the difference is returned; it is never raised.
+
+---
+
+## 7. Troubleshooting
+
+| Problem | Fix |
 |---|---|
-| `services/voice/` · `:4001` | Agent 1 · Jayden |
-| `services/money/` · `:4002` | Agent 2 · Arpit |
-| `services/family/` · `:4003`, `services/delivery/` · `:4004` | Agent 3 · Andy |
-| `packages/contracts/`, `apps/web/` · `:3000`, `e2e/`, `scripts/`, root config | Agent 4 · Claire |
-| `status/AGENT-N.md` | Agent N, except `BUGS FROM INTEGRATION`, which Agent 4 writes |
+| `pnpm health` shows voice down | `CC_INTERNAL_SECRET` is shorter than 24 characters, or differs from the team's |
+| A service starts on the wrong port | Remove any `PORT=` line from `.env` |
+| Database connection refused or wrong password | A native Postgres is using port 5432. Stop it (see section 1), then `docker compose up -d --wait` |
+| `pnpm` not found | `npm install -g pnpm`, then open a new terminal |
+| Care Circle answers with simple canned replies | `META_API_KEY` is missing or invalid, so the keyword bot is answering |
+| The Speak button says the microphone is blocked | Open the page at `http://localhost:3000` in Chrome or Edge and allow the microphone in the address bar |
+| "No sound reached this microphone" | Pick another device in the Mic list, or check the microphone is not muted |
+| The grocery card says the DoorDash cart did not build | The DoorDash page was slow. The dry run finished on the quoted price. Run it again; check `pnpm dd:check` if it keeps happening |
+| DoorDash rejects the token (401) | The `DOORDASH_MCP_TOKEN` in `.env` must match the token the MCP server was started with. Fix one, then restart `pnpm dev` |
+| Old orders or messages are in the way | Press "Reset demo" on `/stage`, or "Reset all data" on `/demo` |
 
-Rules every service follows: nobody under 18 is ever a member, messaged, or called; "keep this between us" is removed before anything reaches the family; the AI never impersonates a family member or clones a voice; verification calls use the number stored in the circle, never one a caller gives.
+---
+
+## 8. Tests
+
+| Command | What it checks |
+|---|---|
+| `pnpm typecheck` | Every package compiles, and the shared types match their schemas |
+| `pnpm --filter @care-circle/<service> test` | One service's unit tests (`voice`, `money`, `family`, `delivery`) |
+| `pnpm e2e` | The cross-service scenarios against the running services. Requires `DELIVERY_PROVIDER=mock` |
+| `pnpm e2e:10` | Ten passing end-to-end runs in a row |
+| `pnpm e2e:selftest` | The end-to-end tests themselves, against an in-memory fake of every service |
+
+When `pnpm e2e` fails it writes `e2e/reports/latest.md`, grouping each failure under the part of the system that owns it.
+
+---
+
+## 9. How it fits together
+
+Five parts share one Postgres database. Each writes only its own schema and talks to the others over HTTP with a shared secret.
+
+| Part | Port | Job |
+|---|---|---|
+| voice | 4001 | Rose's calls. Understands what she says, reads orders back, and only buys after a clear yes. Runs check-in calls to a family member's stored number |
+| money | 4002 | The fraud check (hard rules, scam patterns, "unusual for Rose", family patterns), holds, cooling-off, passkey release, and payments |
+| family | 4003 | The circle, the family phone messages, reminders and nudges, fraud cards, and scheduling family calls |
+| delivery | 4004 | Grocery quotes and carts. The only part that talks to DoorDash, and only for orders money has approved and paid |
+| web | 3000 | Every screen. The browser never talks to the services directly; the web server adds the secret |
+
+A grocery order, end to end: Rose asks, voice builds the list, money prices it from a delivery quote and runs the fraud check, Rose confirms the read-back, money pays, delivery builds the cart, and the family phones show the order and its status.
+
+### Rules the whole system follows
+
+- Nobody under 18 is ever a member, messaged, or called.
+- Anything Rose asks to "keep between us" is removed before it reaches the family.
+- The AI never impersonates a family member and never clones a voice.
+- Check-in calls use the phone number stored in the circle, never one a caller gives.
+- Hard fraud rules are plain code; no AI output can override them.
+
+### Team
+
+| Folder | Owner |
+|---|---|
+| `services/voice/` | Agent 1, Jayden |
+| `services/money/` | Agent 2, Arpit |
+| `services/family/`, `services/delivery/` | Agent 3, Andy |
+| `apps/web/`, `packages/contracts/`, `e2e/`, `scripts/` | Agent 4, Claire |
