@@ -10,7 +10,7 @@ import {
 } from "./types.js";
 export interface Dependencies {
   call<T = unknown>(
-    service: "money" | "family",
+    service: "money" | "family" | "delivery",
     method: "GET" | "POST",
     path: string,
     body?: unknown,
@@ -19,14 +19,18 @@ export interface Dependencies {
 export class HttpDependencies implements Dependencies {
   constructor(private c: Config) {}
   async call<T>(
-    service: "money" | "family",
+    service: "money" | "family" | "delivery",
     method: "GET" | "POST",
     path: string,
     body?: unknown,
   ): Promise<T> {
     // Never retry money mutations automatically: the shared contract has no idempotency key.
     const res = await fetch(
-      (service === "money" ? this.c.moneyUrl : this.c.familyUrl) + path,
+      ({
+        money: this.c.moneyUrl,
+        family: this.c.familyUrl,
+        delivery: this.c.deliveryUrl,
+      }[service]) + path,
       {
         method,
         headers: {
@@ -37,6 +41,18 @@ export class HttpDependencies implements Dependencies {
         signal: AbortSignal.timeout(10_000),
       },
     );
+    if (res.status >= 400 && res.status < 500) {
+      // A 4xx is a refusal: nothing changed, so the reasoner may hear why.
+      const detail = (await res.json().catch(() => ({}))) as {
+        error?: { code?: string; message?: string };
+      };
+      console.warn(`[voice] ${service} ${method} ${path} → ${res.status}`, detail.error?.message ?? "");
+      throw new ApiError(
+        422,
+        detail.error?.code || "DEPENDENCY_REJECTED",
+        `${service} refused: ${detail.error?.message ?? res.status}`,
+      );
+    }
     if (!res.ok)
       throw new ApiError(
         502,
@@ -72,7 +88,7 @@ export class MockDependencies implements Dependencies {
     ],
   };
   async call<T>(
-    service: "money" | "family",
+    service: "money" | "family" | "delivery",
     method: "GET" | "POST",
     path: string,
     body?: unknown,

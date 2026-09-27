@@ -166,8 +166,8 @@ export async function planSlots(muse: Muse, c: Constraints, opts: { preferredWin
       name: "rank_slots",
       schema: RANK_SCHEMA,
       // The voice agent may be waiting on this mid-conversation; the heuristic ranking is a fine fallback.
-      timeoutMs: 12_000,
-      effort: "low",
+      timeoutMs: 6_000,
+      effort: "minimal",
       system: RANK_SYSTEM,
       user: `People:\n${people}\nFamily rhythm: Danny usually calls Sundays ~4pm Rose's time.\n` +
         (opts.preferredWindow ? `Requested: ${opts.preferredWindow}\n` : "") +

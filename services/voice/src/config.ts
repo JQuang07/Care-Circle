@@ -9,8 +9,14 @@ export function config(env: NodeJS.ProcessEnv = process.env) {
     databaseUrl: env.DATABASE_URL,
     moneyUrl: env.MONEY_URL || "http://localhost:4002",
     familyUrl: env.FAMILY_URL || "http://localhost:4003",
+    deliveryUrl: env.DELIVERY_URL || "http://localhost:4004",
     metaKey: env.META_API_KEY,
     model: env.MUSE_MODEL || "muse-spark-1.3",
+    // MOCK=1 fakes phone/payment providers only; the reasoner is chosen separately.
+    reasoner: (env.VOICE_REASONER || (env.META_API_KEY ? "muse" : "mock")) as
+      | "muse"
+      | "mock",
+    museTimeoutMs: Number(env.MUSE_TIMEOUT_MS || 12000),
     stt: env.STT_PROVIDER || "fallback",
     tts: env.TTS_PROVIDER || "deepgram",
     deepgramKey: env.DEEPGRAM_API_KEY,

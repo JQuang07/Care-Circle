@@ -37,7 +37,7 @@ export const affirmative = (text: string, allowed: string[] = []) => {
   return (
     rest
       .replace(
-        /\b(that's everything|that is everything|that's right|go ahead|please do|(order|send) (it|them)|place (the|my) order|with (the|my|that) order|sounds (lovely|good|great|perfect|wonderful|fine)|that works( for me)?|set it up|book it|yes|yeah|okay|ok|sure|confirm|please|and|thank you|thanks)\b/g,
+        /\b(that's everything|that is everything|that's right|go ahead|please do|(order|send) (it|them)|place (the|my) order|with (the|my|that) order|(that )?sounds (lovely|good|great|perfect|wonderful|fine)|that works( for me)?|set it up|book it|yes|yeah|okay|ok|sure|confirm|please|and|thank you|thanks)\b/g,
         "",
       )
       .replace(/[.,!\s]/g, "") === ""
@@ -48,6 +48,15 @@ export const privateEnds = (text: string) =>
   /^(anyway|anyhow|moving on|on another note|enough about that|back to)\b|you can share (this|that)/i.test(
     text.trim(),
   );
+/** Key-order independent JSON: Postgres jsonb does not keep key order. */
+export const stable = (v: unknown): string =>
+  JSON.stringify(v, (_k, x) =>
+    x && typeof x === "object" && !Array.isArray(x)
+      ? Object.fromEntries(
+          Object.entries(x).sort(([a], [b]) => a.localeCompare(b)),
+        )
+      : x,
+  ) ?? "undefined";
 export const negative = (text: string) =>
   /^(no|no thanks|cancel|never mind|nevermind|stop)[.!\s]*$/i.test(text.trim());
 export class Engine {
@@ -197,10 +206,8 @@ export class Engine {
             "This order needs family review.",
           );
           assert(
-            JSON.stringify(current.request) ===
-              JSON.stringify(pending.order.request) &&
-              JSON.stringify(current.fulfilment) ===
-                JSON.stringify(pending.order.fulfilment),
+            stable(current.request) === stable(pending.order.request) &&
+              stable(current.fulfilment) === stable(pending.order.fulfilment),
             "ORDER_CHANGED",
             "Order details changed. Please request a fresh draft.",
           );
@@ -280,7 +287,19 @@ export class Engine {
         return this.say(s, decision.text || "Could you tell me a little more?");
       }
       for (const action of decision.actions) {
-        const result = await this.tool(s, action.name, action.args);
+        let result: unknown;
+        try {
+          result = await this.tool(s, action.name, action.args);
+        } catch (e) {
+          // A model can fix bad arguments; a refusal is reported back, never bypassed.
+          const recoverable =
+            e instanceof z.ZodError ||
+            (e instanceof ApiError && e.statusCode < 500);
+          if (this.reasoner instanceof MockReasoner || !recoverable) throw e;
+          result = {
+            error: e instanceof ApiError ? `${e.code}: ${e.message}` : "Invalid tool arguments.",
+          };
+        }
         if (typeof result === "object" && result !== null && "speak" in result)
           return this.say(s, String(result.speak));
         results.push({ name: action.name, result });
@@ -324,6 +343,11 @@ export class Engine {
       : "Does that family time work for you?";
   }
   echoes(p: Pending) {
+    if (p.kind === "verification")
+      // "Yes, please call Danny" answers the offer; it names only who was offered.
+      return [p.name, "him", "her", "them"]
+        .filter(Boolean)
+        .flatMap((who) => [`call ${who}`, `check with ${who}`]);
     return p.kind === "schedule" && p.label ? [p.label] : [];
   }
   async offerSchedule(s: Session, p: Proposal, slotId: string) {
@@ -534,6 +558,7 @@ export class Engine {
             kind: "verification",
             holdId: order.holdId,
             memberId: member.id,
+            name: member.name,
           };
         s.pendingDelivered = false;
         return {

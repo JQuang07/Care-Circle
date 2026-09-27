@@ -36,6 +36,7 @@ export interface Fraud {
   signals: unknown[];
   recommendedAction: string;
   familyFacingSummary: string;
+  typology?: string;
 }
 export interface Order {
   id: string;
@@ -65,6 +66,7 @@ export interface Hold {
   orderId: string;
   seniorId: string;
   status: string;
+  resolution?: { decision: string; byMemberId: string };
 }
 export interface Circle {
   senior: { id: string; name: string; phone: string };
@@ -80,6 +82,7 @@ export interface Circle {
 export interface Proposal {
   id: string;
   status: string;
+  memberIds?: string[];
   slots: {
     id: string;
     startUtc: string;
@@ -110,7 +113,7 @@ export interface Turn {
 export type Pending =
   | { kind: "order"; order: Order }
   | { kind: "unmatched"; order: Order }
-  | { kind: "verification"; holdId: string; memberId: string }
+  | { kind: "verification"; holdId: string; memberId: string; name?: string }
   | { kind: "schedule"; proposalId: string; slotId: string; label?: string };
 export interface Session {
   callId: string;

@@ -10,7 +10,7 @@ export interface MuseJsonRequest {
   /** Give up and let the caller fall back after this long (default 20s). */
   timeoutMs?: number;
   /** Lower = faster. Use "low" when someone is waiting on the answer. */
-  effort?: "low" | "medium" | "high";
+  effort?: "minimal" | "low" | "medium" | "high";
 }
 
 /** Muse Spark via the openai SDK. `json` returns null when disabled or on any failure, so callers fall back. */
@@ -36,7 +36,7 @@ export function createMuse(cfg: Config, log?: { warn: (o: any, m?: string) => vo
             type: "json_schema",
             json_schema: { name: req.name, strict: true, schema: req.schema },
           },
-          ...(req.effort ? { reasoning_effort: req.effort } : {}),
+          ...(req.effort ? { reasoning_effort: req.effort as "low" } : {}),
         }, { timeout: req.timeoutMs ?? 20_000 });
         const content = res.choices[0]?.message?.content;
         return content ? (JSON.parse(content) as T) : null;

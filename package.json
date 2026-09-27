@@ -19,7 +19,8 @@
     "typecheck": "pnpm -r --parallel typecheck",
     "build:web": "pnpm --filter @care-circle/web build",
     "e2e:selftest": "pnpm --filter @care-circle/e2e selftest",
-    "dd:check": "dotenv -e .env -- pnpm --filter @care-circle/delivery dd:check"
+    "dd:check": "dotenv -e .env -- pnpm --filter @care-circle/delivery dd:check",
+    "demo:run": "dotenv -e .env -- tsx scripts/demo-run.ts"
   },
   "devDependencies": {
     "@types/node": "^22.19.0",

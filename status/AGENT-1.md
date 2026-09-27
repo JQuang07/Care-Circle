@@ -44,3 +44,9 @@ Updated 2026-09-26. Branch `jayden`, synced with integration-v2 on main. Changes
 ## Latency
 
 No real phone measurements. The latency command reports STT-final-to-first-media and excludes endpointing and phone-network delay. Measure audible end-to-end latency separately; do not infer the 1.5s target from mock tests.
+
+## Demo MVP finish (integration-v3, done by Agent 3's Claude with the team's OK for a single-machine finish)
+- `VOICE_REASONER=muse|mock`; MOCK=1 no longer forces MockReasoner. Muse uses `reasoning_effort: "minimal"`, `MUSE_TIMEOUT_MS`, and falls back to MockReasoner per step (`FallbackReasoner`).
+- New `src/demo.ts`: `POST /demo/converse`, `/demo/converse/:id/end`, `EventRecorder` (turn events from real dependency calls).
+- Engine: order-changed check compares key-sorted JSON (jsonb key order caused false 409s); offer echoes ("call Danny", slot label) count as confirmation; recoverable tool errors go back to Muse; dependency 4xx → 422 with the reason.
+- Tests: `test/converse.test.ts`. Details in docs/FINISH-PROGRESS.md.

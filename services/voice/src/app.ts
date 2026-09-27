@@ -14,7 +14,8 @@ import {
   HttpDependencies,
   type Dependencies,
 } from "./dependencies.js";
-import { MuseReasoner, MockReasoner, type Reasoner } from "./reasoner.js";
+import type { Reasoner } from "./reasoner.js";
+import { EventRecorder, makeReasoner, registerConverse } from "./demo.js";
 import { ApiError, assert, id, scheduledCall, type Circle } from "./types.js";
 import { media } from "./media.js";
 const outboundBody = z
@@ -32,19 +33,25 @@ export async function createApp(
   const app = Fastify({ logger: false, bodyLimit: 65536 });
   const store = options.store || new Store(c.databaseUrl);
   await store.init();
-  const deps =
+  const deps = new EventRecorder(
     options.deps ||
-    (c.mockDependencies ? new MockDependencies() : new HttpDependencies(c));
-  const engine = new Engine(
-    store,
-    deps,
-    options.reasoner || (c.mock ? new MockReasoner() : new MuseReasoner(c)),
+      (c.mockDependencies ? new MockDependencies() : new HttpDependencies(c)),
   );
+  const reasoner = options.reasoner || makeReasoner(c, deps);
+  const engine = new Engine(store, deps, reasoner);
   for (const session of store.sessions.values())
     if (session.endedAt && session.purpose !== "reminder")
       await engine.end(session);
   const phone = new Telephony(c, engine);
-  engine.startVerification = (s, h, m) => phone.verify(s, h, m);
+  engine.startVerification = async (s, h, m) => {
+    const r = await phone.verify(s, h, m);
+    deps.emit({
+      type: "verification.started",
+      summary: `Verification call to ${m} on the stored number`,
+      data: { verificationSessionId: r.callId, holdId: h, memberId: m },
+    });
+    return r;
+  };
   await app.register(formbody);
   await app.register(websocket, { options: { maxPayload: 65536 } });
   app.addContentTypeParser(
@@ -55,6 +62,7 @@ export async function createApp(
   app.setErrorHandler((error, _request, reply) => {
     const err = error as Error & { statusCode?: number };
     const status = err instanceof ZodError ? 400 : err.statusCode || 500;
+    if (status >= 500) console.error("[voice]", _request.url, err);
     reply.code(status).send({
       error: {
         code:
@@ -172,6 +180,7 @@ export async function createApp(
     }
     return { callId: s.callId };
   });
+  registerConverse(app, c, engine, store, deps, reasoner);
   app.get("/demo/calls", async (request) => {
     const { seniorId } = z.object({ seniorId: id("sen") }).parse(request.query);
     return [...store.sessions.values()]

@@ -56,3 +56,7 @@ Also owns `services/delivery` on **:4004** (D14). Run everything with `pnpm dev`
   - E2E 4 (Agent 2): Mia's gift was falsely held with `GIFT_CARD_NONMEMBER` and `SECRECY` (D7 says a gift with `recipientMemberId: mem_lisa` must pass).
 - **For Agent 1 (`services/voice/src/app.ts` `/webhooks/scheduled-call-due`):** it enqueues `due:${call.id}` without reading `phase`, so the T-30 **reminder** looks the same as T-0 and may ring Rose 30 minutes early. Family now sends `phase: "reminder" | "due"` in the body (D4); please branch on it.
 - **For Agent 4 (root `scripts/seed.ts:50`): `pnpm seed` fails on Windows.** It prints "family seed failed (exit null)" because Node can't find `pnpm.cmd` when `spawnSync("pnpm", …)` runs without a shell. Fix: `spawnSync("pnpm", args, { …, shell: process.platform === "win32" })`. Workaround until then: run `npx dotenv -e .env -- pnpm --filter @care-circle/<svc> run seed` for family, money, delivery and voice, in that order.
+
+## Demo MVP finish (integration-v3)
+- Family planner Muse call: 6 s timeout, `reasoning_effort: "minimal"` (it overran voice's 10 s dependency timeout → 500 on "set up a call").
+- Root `scripts/demo-run.ts` + `pnpm demo:run`. See docs/FINISH-PROGRESS.md.
