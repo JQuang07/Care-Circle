@@ -75,6 +75,7 @@ Everything runs on one machine. No phone line, Twilio, tunnel or LiveKit is need
 4. **Open http://localhost:3000/stage.**
    - Pick a scenario and press ▶ on each clip in order. The clip plays, is transcribed, Muse answers aloud, and event cards appear.
    - Lisa's and Danny's phones on the right update live. In "Family call", tap the same time on both phones after clip 1.
+   - **🎙 Speak** records from the demo computer's microphone: press it, talk, press it again to send. Choose "as Rose", or "as Danny" for the check-in call after a scam hold. Muse Voice Transcribe turns the audio into text (Deepgram is the backup). The mic only works at `http://localhost:3000`: browsers block microphones on plain-HTTP LAN addresses. Allow the mic when the browser asks.
    - **Reset demo** restores every service to the seed.
 5. **Without a browser:** `pnpm demo:run all` (add `--text` to skip the audio). It prints each transcript, reply and event, then checks the end state.
 

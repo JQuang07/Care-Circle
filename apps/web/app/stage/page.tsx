@@ -33,6 +33,12 @@ type Action = NonNullable<Message["actions"]>[number];
 const roseTime = (iso: string) =>
   new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short", hour: "numeric", minute: "2-digit" }).format(new Date(iso));
 const who = (id?: string) => (id ? id.replace("mem_", "").replace(/^\w/, (ch) => ch.toUpperCase()) : "family");
+const HEARD_BY: Record<string, string> = {
+  muse: "heard by Muse",
+  deepgram: "heard by Deepgram",
+  sidecar: "from the clip's transcript",
+  typed: "typed",
+};
 const money = (c?: number) => (typeof c === "number" ? `$${(c / 100).toFixed(2)}` : "");
 
 /** Stage cards for the events a turn produced. */
@@ -125,6 +131,19 @@ export default function Stage() {
   const [toasts, setToasts] = useState<Record<string, string>>({});
   const [tick, setTick] = useState(0);
   const log = useRef<HTMLDivElement>(null);
+  // Live microphone: who is speaking, and the recording in progress.
+  const [speakAs, setSpeakAs] = useState<"senior" | "mem_danny">("senior");
+  const [mic, setMic] = useState<{ rec: MediaRecorder; started: number }>();
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    if (!mic) return;
+    const t = setInterval(() => {
+      const s = Math.floor((Date.now() - mic.started) / 1000);
+      setElapsed(s);
+      if (s >= 60) mic.rec.state === "recording" && mic.rec.stop(); // hard stop at a minute
+    }, 250);
+    return () => clearInterval(t);
+  }, [mic]);
 
   useEffect(() => {
     fetch("/api/stage/clips").then((r) => r.json()).then((b) => setScenarios(b.scenarios ?? [])).catch(() => setStatus("Couldn't list demo-audio clips."));
@@ -174,7 +193,7 @@ export default function Stage() {
     setSessionId(r.sessionId);
     setTurns((t) => [
       ...t,
-      { who, text: r.transcript ?? "", by: r.transcribedBy, kind: "in" },
+      { who, text: r.transcript ?? "", by: HEARD_BY[r.transcribedBy] ?? r.transcribedBy, kind: "in" },
       { who: "Care Circle", text: r.reply, by: r.reasonedBy === "mock" ? "keyword fallback" : "Muse", kind: "out" },
     ]);
     setEvents((e) => [...e, ...(r.events ?? [])]);
@@ -210,6 +229,53 @@ export default function Stage() {
       setBusy(undefined);
     }
   };
+
+  /** Recorded speech → 16 kHz WAV → /api/stage/audio-turn (Muse Voice Transcribe, then Deepgram). */
+  const sendRecording = async (blob: Blob, as: "senior" | "mem_danny", sid?: string) => {
+    if (blob.size < 2000) return setStatus("That was too short. Press the mic, speak, then press it again to send.");
+    setBusy("mic");
+    try {
+      const wav = await toWav(blob).catch(() => blob);
+      const form = new FormData();
+      form.append("file", wav, wav.type === "audio/wav" ? "mic.wav" : "mic.webm");
+      form.append("seniorId", "sen_rose");
+      if (sid) form.append("sessionId", sid);
+      if (as !== "senior") form.append("speaker", as);
+      const res = await fetch("/api/stage/audio-turn", { method: "POST", body: form });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body?.error ? `${body.error.code}: ${body.error.message}` : "voice failed");
+      await handle(body, as === "senior" ? "Rose" : who(as), as !== "senior");
+    } catch (e) {
+      setStatus((e as Error).message);
+    } finally {
+      setBusy(undefined);
+    }
+  };
+
+  const startMic = async () => {
+    if (busy || mic) return;
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined")
+      return setStatus("This browser can't record here. Open the demo at http://localhost:3000 in Chrome or Edge.");
+    try {
+      speechSynthesis?.cancel();
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 } });
+      const rec = new MediaRecorder(stream);
+      const chunks: Blob[] = [];
+      const as = speakAs, sid = sessionId;
+      rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+      rec.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        setMic(undefined);
+        void sendRecording(new Blob(chunks, { type: rec.mimeType || "audio/webm" }), as, sid);
+      };
+      rec.start();
+      setElapsed(0); setStatus(undefined);
+      setMic({ rec, started: Date.now() });
+    } catch (e) {
+      setStatus(`Microphone blocked (${(e as Error).name}). Allow the microphone for localhost:3000 in the address bar, then try again.`);
+    }
+  };
+  const stopMic = () => { if (mic?.rec.state === "recording") mic.rec.stop(); };
 
   const sendTyped = async () => {
     const text = typed.trim();
@@ -270,6 +336,24 @@ export default function Stage() {
             {active === "family" && <li className="rounded-xl border-2 border-dashed border-honey px-3 py-2 text-[14.5px]">After clip 1, tap the same time on Lisa's and Danny's phones, then play clip 2.</li>}
             {scenario && !scenario.clips.length && <li className="text-[15px] text-heron">No clips in demo-audio/{active}.</li>}
           </ol>
+
+          <div className="mt-3 flex flex-wrap items-center gap-3 rounded-xl bg-white p-3">
+            <button type="button" onClick={mic ? stopMic : startMic} disabled={!!busy && !mic}
+              aria-pressed={!!mic} aria-label={mic ? "Stop and send" : "Speak into the microphone"}
+              className={`flex h-14 items-center gap-2 rounded-full px-5 text-[17px] font-bold text-white disabled:opacity-50 ${mic ? "animate-pulse bg-alarm" : "bg-ink"}`}>
+              <span aria-hidden>{mic ? "■" : "🎙"}</span>
+              {mic ? `Listening… 0:${String(elapsed).padStart(2, "0")} · tap to send` : busy === "mic" ? "Transcribing…" : "Speak"}
+            </button>
+            <fieldset className="flex items-center gap-1 text-[15px]" disabled={!!mic || !!busy}>
+              <legend className="sr-only">Who is speaking</legend>
+              {([["senior", "as Rose"], ["mem_danny", "as Danny (check-in call)"]] as const).map(([v, label]) => (
+                <label key={v} className={`cursor-pointer rounded-full px-3 py-1.5 ${speakAs === v ? "bg-heron text-white" : "bg-mist"}`}>
+                  <input type="radio" name="speakAs" value={v} checked={speakAs === v} onChange={() => setSpeakAs(v)} className="sr-only" />
+                  {label}
+                </label>
+              ))}
+            </fieldset>
+          </div>
 
           <div ref={log} id="rose-log" aria-live="polite" className="mt-4 max-h-[46vh] min-h-[220px] flex-1 space-y-2 overflow-y-auto rounded-xl bg-chat-wall p-3">
             {!turns.length && <p className="text-[15px] text-heron">Press ▶ to play Rose's first clip.</p>}
