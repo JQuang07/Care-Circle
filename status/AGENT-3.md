@@ -48,6 +48,15 @@ Also owns `services/delivery` on **:4004** (D14). Run everything with `pnpm dev`
 9. **CCR-9 (auth scope).** Family requires `X-CC-Secret` on `/webhooks/*`, `/circle/*`, `/jobs/*`, `/demo/*`. Other routes stay open so the web app can call them. Set `FAMILY_REQUIRE_SECRET_ALL=1` to lock everything once web calls go server-side.
 
 ## BUGS FROM INTEGRATION
+- **Local merge test (2026-09-27, local branch `integration-v3` = `andy` + `origin/claire` + `origin/jayden` + `origin/arpit`, NOT pushed):**
+  - **Merge warning for Agent 4:** `origin/arpit` contains `0021c99 "Revert mistaken Agent 4 integration"`. Merging it as is rolls back Agent 1's voice files (`engine.ts`, `app.ts`, tests, `TASKS.md`) and Agent 4's contracts/web/e2e. Take only `services/money/` and `status/AGENT-2.md` from arpit.
+  - With that done: typecheck clean; family 103, delivery 16, money 132 (+1 skipped), voice 49/49 and the contracts self-test all pass; `pnpm health` shows 5 green.
+  - **Live E2E: 1 of 5 pass (E2E 1 groceries ✓)**, plus E2E 0 and the D16 guard.
+    - Fixed here (delivery): the mock called "a gallon of milk" ambiguous, so money wouldn't charge and E2E 1 stalled. Mock staples now resolve it; real DoorDash matching is unchanged.
+    - **E2E 2 → Agent 1:** family reaches `awaiting_senior` (Lisa + Danny accepted). Voice's `begin()` offers "Sun 4:00 PM", then Rose's "Did the family pick a time for our call?" clears the pending offer, and "Yes, Sun 4:00 PM sounds lovely. Please set it up." gets "I'm here to help…". `confirm-senior` is never called. Transcript: `GET voice /demo/calls/:id`.
+    - **E2E 3 → Agent 1/2:** the fraud card now reaches Danny (events work), but the verification call doesn't cancel the hold (stays `open`).
+    - **E2E 4 → Agent 1/2:** voice `/demo/simulate-inbound` → 409 `ORDER_CHANGED` on Mia's gift.
+    - **E2E 5 → Agent 1:** the grocery order stays `approved` in the privacy script (not paid).
 - **Rerun (2026-09-27, later): still 0 of 5, with the same causes.** `e2e/reports/latest.md` routes **E2E 3 to Agent 3, but that's wrong**. Money holds were created (`GET money /holds` shows them open); money on `main`/`andy` uses `RecordingEvents` under `MOCK=1` (`services/money/src/index.ts:23`), so `/webhooks/fraud-hold` never gets called. Replaying one of those holds into family by hand produces the fraud card. Arpit's fix is already on `origin/arpit` (`neighbors.ts`). **Agent 4:** please route "no fraud_card" to Agent 2 in `scripts/file-bugs.ts`.
 - **Live E2E run (2026-09-27, all services on this branch's code, `pnpm health` 5 green): 0 of 5 pass, and none of the failures are in family or delivery.**
   - E2E 1 and E2E 5 (Agents 1 and 2): the grocery order stays `approved` and never becomes `paid`, so the voice confirm → money `/orders/:id/confirm` step doesn't happen. E2E 5's privacy checks never ran.
