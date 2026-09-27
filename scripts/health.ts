@@ -1,6 +1,6 @@
 export {};
 /**
- * pnpm health — the H8 checkpoint check. Hits GET /health on all four services and
+ * pnpm health — the H8 checkpoint check. Hits GET /health on every service (voice, money, family, delivery, web) and
  * validates the contract shape { ok: true, service, mock: boolean } (CONTRACTS.md §0).
  */
 const targets = [
@@ -42,4 +42,4 @@ if (bad.length) {
   console.error(`✗ ${bad.length} of ${rows.length} unhealthy: ${bad.map((b) => b.service).join(", ")}`);
   process.exit(1);
 }
-console.log("✓ all four /health endpoints green");
+console.log("✓ all five /health endpoints green");

@@ -1,5 +1,7 @@
 "use client";
 import type { Message, Order, Slot } from "@care-circle/contracts";
+import { DeliveryStatus } from "@/components/DeliveryStatus";
+import type { DeliveryView } from "@/lib/delivery";
 
 type Action = NonNullable<Message["actions"]>[number];
 
@@ -7,6 +9,8 @@ export interface BubbleProps {
   msg: Message;
   viewerId: string;
   order?: Order;                       // for fraud_card: the paused order, if we could load it
+  delivery?: DeliveryView;             // for add_to_order: where the groceries are (D9/D14)
+  liveCheckout?: boolean;              // false → every delivery shows DRY RUN
   onAct: (msg: Message, action: Action) => void;
   pending?: string;                    // label of the button currently in flight
 }
@@ -61,7 +65,7 @@ function SlotButtons({ msg, viewerId, onAct, pending }: BubbleProps) {
 }
 
 export function MessageBubble(props: BubbleProps) {
-  const { msg, viewerId, order } = props;
+  const { msg, viewerId, order, delivery, liveCheckout = false } = props;
   const tz = { mem_lisa: "America/Chicago", mem_danny: "America/Denver", mem_mark: "Europe/London" }[viewerId] ?? "UTC";
   const mine = msg.direction === "in";
   const stamp = <span className="float-right ml-2 mt-1 text-[11px] text-black/45">{time(msg.createdAt, tz)}</span>;
@@ -110,6 +114,7 @@ export function MessageBubble(props: BubbleProps) {
       return (
         <div className={shell}>
           <p>{msg.body}</p>
+          {delivery && <DeliveryStatus view={delivery} liveCheckout={liveCheckout} variant="chat" />}
           <Buttons {...props} />
           <button
             type="button"

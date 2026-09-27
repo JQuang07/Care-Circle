@@ -2,6 +2,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Message, Order } from "@care-circle/contracts";
 import { MessageBubble } from "./MessageBubble";
+import { deliveryView, type DeliveryInfo } from "@/lib/delivery";
 
 export interface PhoneOwner { id: string; name: string; relation: string; tz: string; city: string }
 
@@ -11,11 +12,12 @@ export function Phone(props: {
   owner: PhoneOwner;
   messages: Message[] | undefined;
   ordersById: Record<string, Order>;
+  delivery?: DeliveryInfo;
   onAct: (msg: Message, action: Action) => Promise<void>;
   onReply: (text: string) => Promise<void>;
   toast?: string;
 }) {
-  const { owner, messages, ordersById, onAct, onReply, toast } = props;
+  const { owner, messages, ordersById, delivery, onAct, onReply, toast } = props;
   const [clock, setClock] = useState("");
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState<string | undefined>();
@@ -75,17 +77,22 @@ export function Phone(props: {
                 No messages yet. Run a scenario from Demo controls.
               </p>
             )}
-            {[...sorted].reverse().map((m) => (
-              <div key={m.id} ref={m.id === latest ? newest : undefined} className="flex flex-col">
-              <MessageBubble
-                msg={m}
-                viewerId={owner.id}
-                order={m.actions?.map((a) => ordersById[a.payload?.orderId]).find(Boolean)}
-                onAct={act}
-                pending={pending && m.actions?.some((a) => a.label === pending) ? pending : undefined}
-              />
-              </div>
-            ))}
+            {[...sorted].reverse().map((m) => {
+              const order = m.actions?.map((a) => ordersById[a.payload?.orderId]).find(Boolean);
+              return (
+                <div key={m.id} ref={m.id === latest ? newest : undefined} className="flex flex-col">
+                <MessageBubble
+                  msg={m}
+                  viewerId={owner.id}
+                  order={order}
+                  delivery={order && deliveryView(order, delivery?.byOrderId[order.id])}
+                  liveCheckout={delivery?.liveCheckout ?? false}
+                  onAct={act}
+                  pending={pending && m.actions?.some((a) => a.label === pending) ? pending : undefined}
+                />
+                </div>
+              );
+            })}
           </div>
           {toast && <p role="status" className="mx-2 mb-1 rounded-md bg-ink/85 px-2 py-1 text-center text-[12.5px] text-white">{toast}</p>}
           <form

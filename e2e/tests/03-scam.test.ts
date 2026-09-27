@@ -2,6 +2,7 @@
  * E2E 3 · Scam: order `held`, `hardStop` true → verifier has a `fraud_card` →
  * scripted Danny says "cancel" → hold `cancelled` → moments show 1 more scam stopped.
  */
+import { MESSAGE_ACTIONS } from "@care-circle/contracts";
 import { money, family, voice, idSet, newSince, inboxSnapshot, summarizeOrder, summarizeMsg } from "../src/api";
 import { scenario, waitFor, FailFast } from "../src/harness";
 import { VERIFIER_IDS } from "../src/ids";
@@ -41,14 +42,14 @@ scenario("E2E 3 · grandparent scam → hold → verified cancel", async (t) => 
       const fresh = newSince(await family.inbox(verifier), inboxBefore[verifier] ?? new Set());
       observe(fresh.map(summarizeMsg));
       const cards = fresh.filter((m) => m.kind === "fraud_card");
-      const linked = cards.find((m) => (m.actions ?? []).some((a) => a.payload?.holdId === order.holdId || a.payload?.orderId === order.id));
-      if (cards.length && !linked) t.warn("fraud_card actions carry no holdId/orderId (CCR-05); matched by recency");
-      return linked ?? cards[0];
+      for (const a of cards.flatMap((m) => m.actions ?? []))
+        if (!MESSAGE_ACTIONS.fraud_card.payload.safeParse(a.payload).success)
+          throw new FailFast(`fraud_card ${a.action} payload violates D5 ({ orderId, holdId }): ${JSON.stringify(a.payload)}`);
+      return cards.find((m) => (m.actions ?? []).some((a) => a.payload.holdId === order.holdId && a.payload.orderId === order.id));
     }));
 
-  await t.step("voice", "the verifier says “cancel” on the verification call", () =>
-    t.proposed("CCR-04 (POST voice /demo/simulate-verification)", () =>
-      voice.simulateVerification(order.holdId!, verifier, DANNY_CANCELS)));
+  await t.step("voice", "the verifier says “cancel” via POST /demo/simulate-verification (D3)", () =>
+    voice.simulateVerification(order.holdId!, verifier, DANNY_CANCELS));
 
   const hold = await t.step("money", "the hold becomes `cancelled` by the verifier, verbally", () =>
     waitFor("hold cancelled", async (observe) => {

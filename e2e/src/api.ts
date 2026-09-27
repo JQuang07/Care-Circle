@@ -1,10 +1,11 @@
-/** Contract endpoints (CONTRACTS.md §4), typed and schema-checked. */
+/** Contract endpoints (CONTRACTS.md §4 + CONTRACTS-ADDENDUM.md), typed and schema-checked. */
 import { z } from "zod";
 import {
-  HoldSchema, MessageSchema, OrderSchema, ProposalSchema, ScheduledCallSchema,
-  type Message, type Order,
+  DeliveryOrderSchema, DemoCallSchema, HoldSchema, MessageSchema, OkResponseSchema, OrderSchema,
+  ProposalSchema, ScheduledCallSchema, SimulateVerificationResponseSchema,
+  type DeliveryAdvanceRequest, type Message, type Order, type SimulateVerificationRequest,
 } from "@care-circle/contracts";
-import { call } from "./http";
+import { call, type Service } from "./http";
 import { SENIOR } from "./ids";
 
 const CallIdSchema = z.object({ callId: z.string() });
@@ -23,34 +24,46 @@ export const MomentsSchema = z.object({
 });
 export type Moments = z.infer<typeof MomentsSchema>;
 
+/** D1 · every stateful service restores its seed state. */
+export const reset = (service: Service) => call(service, "POST", "/demo/reset", {}, OkResponseSchema);
+/** D1 · the order web's "Reset all data" uses. */
+export const RESET_ORDER = ["family", "money", "delivery", "voice"] as const satisfies readonly Service[];
+
 export const voice = {
   simulateInbound: (script: string[]) =>
     call("voice", "POST", "/demo/simulate-inbound", { seniorId: SENIOR.id, script }, CallIdSchema),
-  // ── proposed, not in CONTRACTS.md yet ──
-  /** CCR-04: the verifier speaks on the verification call, text-driven. */
-  simulateVerification: (holdId: string, memberId: string, script: string[]) =>
-    call("voice", "POST", "/demo/simulate-verification", { seniorId: SENIOR.id, holdId, memberId, script }, CallIdSchema),
-  /** CCR-03: which calls voice placed, so E2E can prove /calls/outbound was hit. */
-  calls: () =>
-    call("voice", "GET", `/demo/calls?seniorId=${SENIOR.id}`, undefined,
-      z.array(z.object({ callId: z.string(), kind: z.string(), purpose: z.string().optional(), scheduledCallId: z.string().optional(), startedAt: z.string() }))),
+  /** D3 · the verifier speaks on the verification call, text-driven. */
+  simulateVerification: (holdId: string, memberId: string, script: SimulateVerificationRequest["script"]) =>
+    call("voice", "POST", "/demo/simulate-verification",
+      { seniorId: SENIOR.id, holdId, memberId, script } satisfies SimulateVerificationRequest, SimulateVerificationResponseSchema),
+  /** D3 · which calls voice placed, so E2E can prove /calls/outbound was hit. */
+  calls: () => call("voice", "GET", `/demo/calls?seniorId=${SENIOR.id}`, undefined, z.array(DemoCallSchema)),
 };
 
 export const money = {
   orders: () => call("money", "GET", `/orders?seniorId=${SENIOR.id}`, undefined, z.array(OrderSchema)),
+  /** D9 */
+  order: (id: string) => call("money", "GET", `/orders/${id}`, undefined, OrderSchema),
   holds: () => call("money", "GET", `/holds?seniorId=${SENIOR.id}`, undefined, z.array(HoldSchema)),
 };
 
 export const family = {
   inbox: (memberId: string) => call("family", "GET", `/messages?memberId=${memberId}`, undefined, z.array(MessageSchema)),
+  /** D5 · send the stored button payload back unchanged. */
   act: (messageId: string, action: string, payload: unknown) =>
     call("family", "POST", `/messages/${messageId}/act`, { action, payload }),
   pendingSenior: () => call("family", "GET", `/proposals/${SENIOR.id}/pending-senior`, undefined, z.array(ProposalSchema)),
   upcoming: () => call("family", "GET", `/schedule/${SENIOR.id}/upcoming`, undefined, z.array(ScheduledCallSchema)),
   moments: () => call("family", "GET", `/moments/${SENIOR.id}`, undefined, MomentsSchema),
-  // ── proposed, not in CONTRACTS.md yet ──
-  /** CCR-02: fire scheduled_call.due now instead of waiting for the wall clock. */
-  fireDue: (scheduledCallId: string) => call("family", "POST", "/demo/fire-due", { scheduledCallId }),
+  /** D2 · fire scheduled_call.due now instead of waiting for the wall clock. */
+  fireDue: (scheduledCallId: string) => call("family", "POST", "/demo/fire-due", { scheduledCallId }, OkResponseSchema),
+};
+
+/** D14 · delivery (:4004). E2E only runs when its provider is `mock` (see global-setup). */
+export const delivery = {
+  orders: () => call("delivery", "GET", `/orders?seniorId=${SENIOR.id}`, undefined, z.array(DeliveryOrderSchema)),
+  advance: (deliveryId: string, to: DeliveryAdvanceRequest["to"]) =>
+    call("delivery", "POST", `/demo/advance/${deliveryId}`, { to } satisfies DeliveryAdvanceRequest, DeliveryOrderSchema),
 };
 
 // ── snapshot helpers: tests assert on what's NEW, so runs repeat without a reset ──

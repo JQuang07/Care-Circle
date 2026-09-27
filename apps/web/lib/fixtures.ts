@@ -1,7 +1,7 @@
 /**
  * Sample data shown ONLY when a service is unreachable, always under a visible
  * "sample data" banner. Every object is typed against CONTRACTS.md §3, and action
- * payloads follow the shapes proposed in CCR-05.
+ * payloads follow the D5 shapes (CONTRACTS-ADDENDUM.md).
  */
 import type { Hold, Message, Order, ScheduledCall, Slot } from "@care-circle/contracts";
 
@@ -85,6 +85,8 @@ export const SAMPLE_ORDERS: Order[] = [
   },
   {
     id: "ord_fx_groc", seniorId: "sen_rose", status: "paid", createdAt: t(42), receiptUrl: "#receipt",
+    fulfilment: { provider: "mock", storeName: "FreshMart (demo)", quoteId: "q_fx", unmatchedItems: ["Saffron"],
+      delivery: { deliveryId: "del_fx", status: "dry_run_complete", etaText: "25-35 min" } },
     request: { seniorId: "sen_rose", type: "groceries", merchantId: "mer_freshmart", amountCents: 2340,
       items: [{ name: "Milk", qty: 1 }, { name: "Wheat bread", qty: 1 }, { name: "Eggs", qty: 1 }, { name: "Bananas", qty: 1 }],
       context: { transcriptExcerpt: "A gallon of milk, a loaf of wheat bread, a dozen eggs, and some bananas." } },

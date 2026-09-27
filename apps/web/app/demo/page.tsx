@@ -8,6 +8,8 @@ import { z } from "zod";
 import { HoldSchema, OrderSchema, ScheduledCallSchema } from "@care-circle/contracts";
 import { DEMO_BUTTONS, DANNY_CANCELS, type DemoScript } from "@care-circle/e2e/scripts";
 import { svc, explain } from "@/lib/svc";
+import { RESET_ORDER } from "@/lib/services";
+import { DoorDashPanel } from "@/components/DoorDashPanel";
 import { usePoll } from "@/lib/usePoll";
 
 type Status = { tone: "ok" | "err" | "busy"; text: string };
@@ -31,7 +33,7 @@ export default function Demo() {
   const [evalResult, setEvalResult] = useState<unknown>();
 
   const health = usePoll(async (signal) => {
-    const svcs = ["voice", "money", "family"] as const;
+    const svcs = ["voice", "money", "family", "delivery"] as const;
     const r = await Promise.all(svcs.map((s) => svc<{ ok: boolean; mock: boolean }>(s, "/health", { signal })));
     return svcs.map((s, i) => ({ s, ok: r[i]!.ok, mock: r[i]!.ok ? (r[i] as { data: { mock: boolean } }).data.mock : undefined }));
   }, 5000);
@@ -60,24 +62,29 @@ export default function Demo() {
     const r = await svc<{ callId: string }>("voice", "/demo/simulate-verification", {
       method: "POST", body: { seniorId: "sen_rose", holdId: hold.id, memberId: verifier, script: DANNY_CANCELS },
     });
-    setStatus("verify", r.ok ? { tone: "ok", text: `Check-in call ${r.data.callId}: ${verifier.replace("mem_", "")} said it wasn't him.` } : { tone: "err", text: explain(r, "CCR-04") });
+    setStatus("verify", r.ok ? { tone: "ok", text: `Check-in call ${r.data.callId}: ${verifier.replace("mem_", "")} said it wasn't him.` } : { tone: "err", text: explain(r, "voice D3 /demo/simulate-verification") });
   };
 
   const fastForward = async () => {
     if (!next) return setStatus("ff", { tone: "err", text: "No family call is booked. Run “I'd love to see the kids” and accept a time first." });
     setStatus("ff", { tone: "busy", text: "Ringing Rose…" });
     const r = await svc("family", "/demo/fire-due", { method: "POST", body: { scheduledCallId: next.id } });
-    setStatus("ff", r.ok ? { tone: "ok", text: "It's call time. Rose's phone is ringing." } : { tone: "err", text: explain(r, "CCR-02") });
+    setStatus("ff", r.ok ? { tone: "ok", text: "It's call time. Rose's phone is ringing." } : { tone: "err", text: explain(r, "family D2 /demo/fire-due") });
   };
 
   const reset = async () => {
     if (!confirm("Reset every service to the seed data? Orders, messages, and calls from this session will be erased.")) return;
-    setStatus("reset", { tone: "busy", text: "Resetting family, then money, then voice…" });
-    for (const s of ["family", "money", "voice"] as const) {
+    // D1: in order, and every service is tried even if one fails, so a single missing
+    // endpoint can't leave the others holding stale demo data.
+    setStatus("reset", { tone: "busy", text: `Resetting ${RESET_ORDER.join(" → ")}…` });
+    const failed: string[] = [];
+    for (const s of RESET_ORDER) {
       const r = await svc(s, "/demo/reset", { method: "POST", body: {} });
-      if (!r.ok) return setStatus("reset", { tone: "err", text: `${s}: ${explain(r, "CCR-01")}` });
+      if (!r.ok) failed.push(`${s}: ${explain(r, `${s} D1 /demo/reset`)}`);
     }
-    setStatus("reset", { tone: "ok", text: "All data reset to the seed." });
+    setStatus("reset", failed.length
+      ? { tone: "err", text: `Reset ${RESET_ORDER.length - failed.length} of ${RESET_ORDER.length}. ${failed.join(" · ")}` }
+      : { tone: "ok", text: "Every service reset to the seed." });
   };
 
   const showEval = async () => {
@@ -146,6 +153,8 @@ export default function Demo() {
           <Line s={status.reset} />
         </div>
       </section>
+
+      <DoorDashPanel />
 
       {evalResult !== undefined && (
         <section aria-labelledby="eval-h" className="mt-6 rounded-xl bg-white p-4">
