@@ -67,3 +67,5 @@ Also owns `services/delivery` on **:4004** (D14). Run everything with `pnpm dev`
 - Quotes reuse the login check (5 min) and store lookup (30 min).
 - dd-mcp patch: waits for the grocery `/convenience` redirect; reads `$0.59/lb` / `each` produce prices (bananas). Needs an MCP server restart.
 - **For Agent 4, done with the human's OK:** `apps/web/app/stage/page.tsx` speaks a holding line ("One moment, Rose. I'm checking Kroger's prices…") when a turn takes more than 1.5 s. Rose's line is placed above it once the transcript arrives.
+- **For Agent 1, done with the human's OK:** voice `POST /demo/speak { text }` → Deepgram Aura-2 MP3 (MOCK=1, secret, in-memory cache). `ttsKey()` in `speech.ts` falls back to reading the repo-root `.env`, so a key added after `pnpm dev` started works without a restart; phone TTS uses it too.
+- **For Agent 4, done with the human's OK:** web `/api/stage/speak` proxy; the stage speaks with Aura-2 (holding lines pre-fetched) and falls back to the browser voice. Replies are labelled "Care Circle (AI voice)".

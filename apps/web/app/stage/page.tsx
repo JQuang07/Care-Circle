@@ -111,7 +111,51 @@ async function toWav(blob: Blob): Promise<Blob> {
   return new Blob([buf], { type: "audio/wav" });
 }
 
-function speak(text: string, member?: boolean): Promise<void> {
+/** Care Circle's voice: Deepgram Aura-2 MP3 via voice /demo/speak, fetched once per line. */
+const voiceClips = new Map<string, Promise<string | undefined>>();
+function fetchVoice(text: string): Promise<string | undefined> {
+  let clip = voiceClips.get(text);
+  if (!clip) {
+    clip = fetch("/api/stage/speak", {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text }),
+      signal: AbortSignal.timeout(6000),
+    })
+      .then(async (r) => (r.ok && r.headers.get("content-type")?.includes("audio") ? URL.createObjectURL(await r.blob()) : undefined))
+      .catch(() => undefined);
+    voiceClips.set(text, clip);
+    void clip.then((url) => { if (!url) voiceClips.delete(text); }); // retry a failed line next time
+  }
+  return clip;
+}
+let playing: HTMLAudioElement | undefined;
+
+/** Spoken while a slow turn (a live DoorDash quote) runs. */
+const HOLD_LINES = {
+  groceries: { wait: "One moment, Rose. I'm checking Kroger's prices on DoorDash for you.", almost: "Almost done. I've found most of your items." },
+  other: { wait: "One moment, Rose. Let me check on that for you.", almost: "Almost done, Rose." },
+};
+
+async function speak(text: string, member?: boolean): Promise<void> {
+  if (typeof window === "undefined" || !text) return;
+  const url = await fetchVoice(text);
+  if (url) {
+    const ok = await new Promise<boolean>((done) => {
+      playing?.pause();
+      speechSynthesis?.cancel();
+      const audio = (playing = new Audio(url));
+      // Never block the demo on a missing "ended" event.
+      const timer = setTimeout(() => done(true), 3000 + text.length * 90);
+      audio.onended = () => { clearTimeout(timer); done(true); };
+      audio.onerror = () => { clearTimeout(timer); done(false); };
+      audio.play().catch(() => { clearTimeout(timer); done(false); });
+    });
+    if (ok) return;
+  }
+  return browserSpeak(text, member);
+}
+
+/** Fallback when the voice service has no TTS key or doesn't answer. */
+function browserSpeak(text: string, member?: boolean): Promise<void> {
   return new Promise((done) => {
     if (typeof window === "undefined" || !window.speechSynthesis || !text) return done();
     const u = new SpeechSynthesisUtterance(text);
@@ -170,6 +214,8 @@ export default function Stage() {
   }, [mic]);
 
   useEffect(() => {
+    // The holding lines are fetched up front so they play the moment they're needed.
+    for (const l of Object.values(HOLD_LINES)) { void fetchVoice(l.wait); void fetchVoice(l.almost); }
     fetch("/api/stage/clips").then((r) => r.json()).then((b) => setScenarios(b.scenarios ?? [])).catch(() => setStatus("Couldn't list demo-audio clips."));
     speechSynthesis?.getVoices();
   }, []);
@@ -245,16 +291,11 @@ export default function Stage() {
     void pending.catch(() => undefined).finally(() => { settled = true; });
     const say = (text: string) => {
       if (settled || member) return;
-      setTurns((ts) => [...ts, { who: "Care Circle", text, by: "while it works", kind: "out" }]);
+      setTurns((ts) => [...ts, { who: "Care Circle (AI voice)", text, by: "while it works", kind: "out" }]);
       void speak(text);
     };
-    const groceries = active === "groceries";
-    const timers = [
-      setTimeout(() => say(groceries
-        ? "One moment, Rose. I'm checking Kroger's prices on DoorDash for you."
-        : "One moment, Rose. Let me check on that for you."), 1500),
-      setTimeout(() => say(groceries ? "Almost done. I've found most of your items." : "Almost done, Rose."), 30_000),
-    ];
+    const lines = HOLD_LINES[active === "groceries" ? "groceries" : "other"];
+    const timers = [setTimeout(() => say(lines.wait), 1500), setTimeout(() => say(lines.almost), 30_000)];
     return () => timers.forEach(clearTimeout);
   };
 
@@ -267,7 +308,7 @@ export default function Stage() {
     setSessionId(r.sessionId);
     setTurns((t) => {
       const said: Turn = { who, text: r.transcript ?? "", by: HEARD_BY[r.transcribedBy] ?? r.transcribedBy, kind: "in" };
-      const reply: Turn = { who: "Care Circle", text: r.reply, by: r.reasonedBy === "mock" ? "keyword fallback" : "Muse", kind: "out" };
+      const reply: Turn = { who: "Care Circle (AI voice)", text: r.reply, by: r.reasonedBy === "mock" ? "keyword fallback" : "Muse", kind: "out" };
       const i = t.findIndex((x) => x.pending);
       if (i < 0) return [...t, said, reply];
       return [...t.slice(0, i), said, ...t.slice(i + 1), reply];

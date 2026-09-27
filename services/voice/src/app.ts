@@ -23,6 +23,7 @@ import {
 } from "./demo.js";
 import { ApiError, assert, id, scheduledCall, type Circle } from "./types.js";
 import { media } from "./media.js";
+import { speakMp3, ttsKey } from "./speech.js";
 const outboundBody = z
   .object({
     seniorId: id("sen"),
@@ -186,6 +187,17 @@ export async function createApp(
     return { callId: s.callId };
   });
   await registerConverse(app, c, engine, store, deps, reasoner);
+  // Care Circle's own voice for the stage page (one AI voice; never a family member's).
+  app.post("/demo/speak", async (request, reply) => {
+    assert(c.mock, "DEMO_DISABLED", "Demo speech is available only in MOCK=1.", 403);
+    const { text } = z.object({ text: z.string().trim().min(1).max(1000) }).parse(request.body);
+    assert(ttsKey(c), "TTS_UNAVAILABLE", "No DEEPGRAM_API_KEY; the stage falls back to the browser voice.", 503);
+    try {
+      return reply.type("audio/mpeg").header("cache-control", "no-store").send(await speakMp3(c, text));
+    } catch (e) {
+      throw new ApiError(502, "TTS_UNAVAILABLE", (e as Error).message);
+    }
+  });
   app.get("/demo/calls", async (request) => {
     const { seniorId } = z.object({ seniorId: id("sen") }).parse(request.query);
     return [...store.sessions.values()]
