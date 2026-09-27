@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
       headers: { "x-cc-secret": process.env.CC_INTERNAL_SECRET ?? "" },
       body: out,
       cache: "no-store",
-      signal: AbortSignal.timeout(90_000),
+      signal: AbortSignal.timeout(240_000), // a live DoorDash grocery quote can take minutes
     });
     return new NextResponse(await upstream.text(), { status: upstream.status, headers: { "content-type": "application/json" } });
   } catch (e) {

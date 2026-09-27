@@ -51,7 +51,9 @@ export function httpDelivery(url: string, secret: string, log: (message: string)
         response = await fetch(`${url.replace(/\/$/, '')}/quote`, {
           method: 'POST', headers: { 'content-type': 'application/json', 'x-cc-secret': secret },
           body: JSON.stringify({ kind: 'grocery', items: request.items.map(({ name, qty }) => ({ name, qty })) }),
-          signal: AbortSignal.timeout(3000),
+          // A real DoorDash quote searches the store once per item (~20 s each); refused
+          // connections still fail fast, so the fallback stays quick when delivery is down.
+          signal: AbortSignal.timeout(Number(process.env.DELIVERY_QUOTE_TIMEOUT_MS) || 150_000),
         });
       } catch {
         log('Delivery unavailable; using FreshMart fallback prices');

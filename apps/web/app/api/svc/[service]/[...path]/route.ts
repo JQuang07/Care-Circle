@@ -37,7 +37,8 @@ async function proxy(req: NextRequest, { params }: Params, method: "GET" | "POST
       headers: { "content-type": "application/json", "x-cc-secret": process.env.CC_INTERNAL_SECRET ?? "" },
       body: reqBody,
       cache: "no-store",
-      signal: AbortSignal.timeout(15_000),
+      // Voice demo turns can wait on a live DoorDash grocery quote.
+      signal: AbortSignal.timeout(svc === "voice" && subpath.startsWith("/demo/converse") ? 240_000 : 15_000),
     });
     const body = await upstream.text();
     return new NextResponse(body || null, {

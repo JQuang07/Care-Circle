@@ -38,7 +38,8 @@ export class HttpDependencies implements Dependencies {
           "Content-Type": "application/json",
         },
         body: body === undefined ? undefined : JSON.stringify(body),
-        signal: AbortSignal.timeout(10_000),
+        // A grocery draft waits for delivery's live DoorDash quote (a store search per item).
+        signal: AbortSignal.timeout(path === "/orders/draft" ? 180_000 : 10_000),
       },
     );
     if (res.status >= 400 && res.status < 500) {

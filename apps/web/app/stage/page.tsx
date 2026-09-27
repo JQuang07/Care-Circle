@@ -189,6 +189,28 @@ export default function Stage() {
   }, 1500, [tick]);
   const ordersById = Object.fromEntries((phones?.orders ?? []).map((o) => [o.id, o]));
 
+  // A real DoorDash cart builds after payment (a store search per item), so it lands after
+  // Rose's reply. Follow each paid grocery order through delivery's own record.
+  const shownDelivery = new Set(events.filter((e) => e.type.startsWith("delivery.")).map((e) => e.data?.cart?.orderId ?? e.data?.orderId));
+  const deliveryCards = events
+    .filter((e) => e.type === "order.paid" && ordersById[e.data?.orderId]?.fulfilment)
+    .map((e) => e.data.orderId as string)
+    .filter((id) => !shownDelivery.has(id))
+    .map((id) => {
+      const d = phones?.delivery.byOrderId[id];
+      const store = (d?.storeName ?? ordersById[id]?.fulfilment?.storeName ?? "the store").replace(/\s*\(demo\)$/i, "");
+      if (!d || d.status === "cart_ready")
+        return { key: id, tone: "honey", title: `Building the ${store} cart…`, body: "DoorDash is finding each item in the store. This takes about a minute." };
+      if (d.status === "failed")
+        return { key: id, tone: "alarm", title: "Delivery couldn't finish", body: d.failureReason ?? "See the delivery service log." };
+      return {
+        key: id, tone: "leaf", title: `Ordered from ${store}`,
+        body: d.provider === "doordash_thirdparty"
+          ? `DoorDash cart ${money(d.cartTotalCents)} · stopped at DoorDash checkout (DRY RUN, no charge).`
+          : `Cart ${money(d.cartTotalCents)} · mock delivery (DRY RUN, no charge).`,
+      };
+    });
+
   const toast = useCallback((memberId: string, text: string) => {
     setToasts((t) => ({ ...t, [memberId]: text }));
     setTimeout(() => setToasts((t) => (t[memberId] === text ? { ...t, [memberId]: "" } : t)), 4000);
@@ -454,6 +476,12 @@ export default function Stage() {
                 </li>
               ) : null;
             })}
+            {deliveryCards.map((c) => (
+              <li key={c.key} className={`rounded-xl border-l-4 px-3 py-2 ${TONE[c.tone]}`}>
+                <p className="text-[15px] font-bold">{c.title}</p>
+                <p className="text-[14.5px]">{c.body}</p>
+              </li>
+            ))}
           </ul>
         </section>
 
