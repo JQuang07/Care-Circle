@@ -28,7 +28,7 @@ export function httpMoneyClient(baseUrl: string, secret: string): MoneyClient {
 }
 
 /** D14 event, plus `seniorId` and `storeName` (additive) so receivers can route it without a lookup. */
-export type Emit = (event: { deliveryId: string; orderId: string; seniorId: string; storeName: string; status: DeliveryStatus; etaUtc?: string; etaText?: string; trackingUrl?: string; failureReason?: string }) => void;
+export type Emit = (event: { deliveryId: string; orderId: string; seniorId: string; storeName: string; status: DeliveryStatus; etaUtc?: string; etaText?: string; trackingUrl?: string; failureReason?: string; cartTotalCents?: number; approvedAmountCents?: number }) => void;
 
 export function httpEmitter(targets: string[], secret: string, log: (m: string) => void): Emit {
   return (ev) => {
@@ -209,7 +209,9 @@ export class DeliveryService {
 
   private setStatus(d: DeliveryOrder, status: DeliveryStatus): DeliveryOrder {
     d.status = status; d.updatedAt = nowIso();
-    this.emit({ deliveryId: d.deliveryId, orderId: d.orderId, seniorId: d.seniorId, storeName: d.storeName, status, etaUtc: d.etaUtc, etaText: d.etaText, trackingUrl: d.trackingUrl, failureReason: d.failureReason });
+    this.emit({ deliveryId: d.deliveryId, orderId: d.orderId, seniorId: d.seniorId, storeName: d.storeName, status, etaUtc: d.etaUtc, etaText: d.etaText, trackingUrl: d.trackingUrl, failureReason: d.failureReason,
+      // The real cart total once built: money settles the charge to it (it charged the quote's fee estimate).
+      ...(d.cartTotalCents > 0 ? { cartTotalCents: d.cartTotalCents, approvedAmountCents: d.approvedAmountCents } : {}) });
     return d;
   }
 

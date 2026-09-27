@@ -84,4 +84,6 @@ export interface DeliveryStatus {
 export interface Fulfilment {
   provider: 'mock' | 'doordash_thirdparty'; storeName: string; quoteId?: string;
   unmatchedItems?: string[]; delivery?: DeliveryStatus;
+  /** Settled once the real cart exists: what the family card finally pays, and what the fee estimate over-charged. */
+  finalAmountCents?: number; returnedCents?: number;
 }

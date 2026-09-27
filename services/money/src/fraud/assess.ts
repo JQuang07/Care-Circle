@@ -83,7 +83,8 @@ export async function assess(req: OrderRequest, deps: AssessDeps): Promise<Fraud
   }] : [];
 
   // Layers 3 and 4.
-  const l3 = baselineSignals(req, ledger.filter((e) => e.at >= new Date(now.getTime() - 60 * 86400_000).toISOString()), now, tz);
+  // Refund lines (a settled fee estimate) are not purchases: keep them out of the spending baseline.
+  const l3 = baselineSignals(req, ledger.filter((e) => e.amountCents > 0 && e.at >= new Date(now.getTime() - 60 * 86400_000).toISOString()), now, tz);
   const l4 = relationshipSignals(req, circle, rhythm);
 
   const soft = [...l2Signals, ...l3, ...l4.signals];

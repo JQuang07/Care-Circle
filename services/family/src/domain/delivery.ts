@@ -15,6 +15,17 @@ export interface DeliveryStatusEvent {
   deliveryId: string; orderId: string; status: string;
   etaUtc?: string; etaText?: string; trackingUrl?: string; failureReason?: string;
   seniorId?: string; storeName?: string;
+  /** The real cart total and what money charged (the quote's fee estimate); money settles to the lower. */
+  cartTotalCents?: number; approvedAmountCents?: number;
+}
+
+const usd = (c: number) => `$${(c / 100).toFixed(2)}`;
+/** " Final total $12.57 at DoorDash checkout ($1.54 of the $14.11 estimate goes back to the family card)." */
+export function finalTotalNote(ev: Pick<DeliveryStatusEvent, "cartTotalCents" | "approvedAmountCents">): string {
+  const cart = ev.cartTotalCents, charged = ev.approvedAmountCents;
+  if (!Number.isInteger(cart) || cart! <= 0) return "";
+  if (!Number.isInteger(charged) || cart! >= charged!) return ` Final total ${usd(cart!)} at DoorDash checkout.`;
+  return ` Final total ${usd(cart!)} at DoorDash checkout (${usd(charged! - cart!)} of the ${usd(charged!)} estimate goes back to the family card).`;
 }
 
 const HANDLED = ["dry_run_complete", "placed", "picked_up", "delivered", "failed"];
@@ -48,7 +59,7 @@ export async function handleDeliveryStatus(deps: Deps, ev: DeliveryStatusEvent):
       // The primary contact: the first verifier in circle order (Lisa in the seed).
       const primary = members.find((m) => m.isVerifier) ?? members[0];
       // Demo: the DoorDash cart is built and checkout reached; the real order button is never pressed.
-      await send([primary], `✅ Order confirmed: ${senior.name}'s groceries are ordered from ${store}. (Demo: DoorDash checkout reached, no real charge.)`);
+      await send([primary], `✅ Order confirmed: ${senior.name}'s groceries are ordered from ${store}.${finalTotalNote(ev)} (Demo: DoorDash checkout reached, no real charge.)`);
       return;
     }
     case "placed":

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Message } from "../src/contracts-local.js";
 import { ServiceError } from "../src/adapters/services.js";
+import { finalTotalNote } from "../src/domain/delivery.js";
 import { json, makeCtx, type TestCtx } from "./helpers.js";
 
 // Task 5: POST /webhooks/delivery-status (D14 events from services/delivery).
@@ -76,5 +77,14 @@ describe("delivery-status webhook", () => {
     ctx.delivery.orders.push({ deliveryId: "dlv_9", orderId: "ord_9", seniorId: "sen_rose", storeName: "Corner Grocer", status: "dry_run_complete" });
     await post({ deliveryId: "dlv_9", orderId: "ord_9", status: "dry_run_complete" });
     expect(await texts("mem_lisa")).toEqual(["✅ Order confirmed: Rose's groceries are ordered from Corner Grocer. (Demo: DoorDash checkout reached, no real charge.)"]);
+  });
+});
+
+describe("delivery · final total note", () => {
+  it("shows the real DoorDash total and what the fee estimate gives back", () => {
+    expect(finalTotalNote({ cartTotalCents: 1257, approvedAmountCents: 1411 }))
+      .toBe(" Final total $12.57 at DoorDash checkout ($1.54 of the $14.11 estimate goes back to the family card).");
+    expect(finalTotalNote({ cartTotalCents: 1411, approvedAmountCents: 1411 })).toBe(" Final total $14.11 at DoorDash checkout.");
+    expect(finalTotalNote({})).toBe("");
   });
 });

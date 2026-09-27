@@ -173,7 +173,8 @@ export class MoneyService {
     const statuses = ['cart_ready', 'dry_run_complete', 'awaiting_live_checkout', 'placed', 'picked_up', 'delivered', 'failed'];
     if (typeof b.orderId !== 'string' || typeof b.deliveryId !== 'string' || !b.deliveryId ||
         typeof b.status !== 'string' || !statuses.includes(b.status) ||
-        ['etaText', 'trackingUrl', 'failureReason'].some(k => b[k] !== undefined && typeof b[k] !== 'string')) {
+        ['etaText', 'trackingUrl', 'failureReason'].some(k => b[k] !== undefined && typeof b[k] !== 'string') ||
+        (b.cartTotalCents !== undefined && !(Number.isSafeInteger(b.cartTotalCents) && (b.cartTotalCents as number) > 0))) {
       throw new ApiError(400, 'BAD_REQUEST', 'Invalid delivery status event');
     }
     const order = await this.getOrder(b.orderId);
@@ -187,6 +188,25 @@ export class MoneyService {
         statuses.indexOf(b.status) < statuses.indexOf(previous.status))) return order;
     order.fulfilment.delivery = { ...previous, deliveryId: b.deliveryId, status: b.status as DeliveryStatus['status'],
       ...Object.fromEntries(['etaText', 'trackingUrl', 'failureReason'].filter(k => b[k] !== undefined).map(k => [k, b[k]])) };
+    // Settle to the real cart. The quote charged an estimate of DoorDash's fees; once the cart
+    // exists its total is known, and a lower total goes back to the family card (once, as a
+    // negative ledger line). A higher total is never charged here: delivery already refused
+    // anything above the approved amount + tolerance, and the family card stays at what Rose approved.
+    const cart = b.cartTotalCents as number | undefined;
+    if (cart !== undefined && order.fulfilment.finalAmountCents === undefined &&
+        ['dry_run_complete', 'awaiting_live_checkout', 'placed'].includes(b.status)) {
+      const charged = effectiveAmountCents(order.request);
+      const final = Math.min(cart, charged);
+      order.fulfilment.finalAmountCents = final;
+      if (final < charged) {
+        order.fulfilment.returnedCents = charged - final;
+        await this.d.store.addLedger([{
+          id: `led_${order.id}_settle`, seniorId: order.seniorId, at: this.d.now().toISOString(),
+          merchantId: order.request.merchantId, category: categoryOf(order.request), amountCents: final - charged,
+          label: 'DoorDash final total (fee estimate returned)',
+        }]);
+      }
+    }
     await this.d.store.saveOrder(order);
     return order;
   }
