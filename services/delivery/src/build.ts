@@ -5,6 +5,6 @@ import type { Provider } from "./providers/provider.js";
 
 export async function buildProvider(cfg: Config): Promise<Provider> {
   if (cfg.provider === "mock") return new MockProvider();
-  const tools = await connectMcp({ url: cfg.mcpUrl, token: cfg.mcpToken, command: cfg.mcpCommand });
+  const tools = await connectMcp({ url: cfg.mcpUrl, token: cfg.mcpToken, command: cfg.mcpCommand }, (m) => console.log(`[delivery] ${m}`));
   return new DoorDashMcpProvider(tools, { dropoffAddress: cfg.dropoffAddress, defaultGroceryStore: cfg.defaultGroceryStore, feeBaseCents: cfg.feeBaseCents, feePct: cfg.feePct });
 }

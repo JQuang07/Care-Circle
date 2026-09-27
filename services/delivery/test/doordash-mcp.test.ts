@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DoorDashMcpProvider, REQUIRED_TOOLS, type ToolCaller } from "../src/providers/doordash-mcp";
+import { DoorDashMcpProvider, REQUIRED_TOOLS, resilient, type ToolCaller } from "../src/providers/doordash-mcp";
 
 /** A fake of the davidgibbons/striderlabs DoorDash MCP server's tool results. */
 function fakeServer(o: { loggedIn?: boolean; tools?: string[]; startCart?: any[] } = {}) {
@@ -81,5 +81,49 @@ describe("DoorDash MCP provider (tool mapping)", () => {
     expect(calls.filter((c) => c.name === "doordash_auth_check").length).toBe(authBefore);
     release();
     expect(await store).toEqual({ id: "store_42", name: "Safeway" });
+  });
+});
+
+describe("DoorDash MCP connection (resilient)", () => {
+  /** A connection that dies (server restarted) after `alive` calls, or returns a transient tool error. */
+  function conn(o: { alive?: number; transient?: string[] } = {}) {
+    let n = 0;
+    const calls: string[] = [];
+    const c: ToolCaller = {
+      async listTools() { return [...REQUIRED_TOOLS]; },
+      async call(name) {
+        calls.push(name);
+        if (o.alive !== undefined && ++n > o.alive) throw new Error("Streamable HTTP error: Session not found");
+        const t = o.transient?.indexOf(name) ?? -1;
+        if (t >= 0) { o.transient!.splice(t, 1); return { success: false, error: "page.waitForTimeout: Target page, context or browser has been closed" }; }
+        return { success: true, name };
+      },
+    };
+    return { c, calls };
+  }
+
+  it("reconnects after the MCP server restarts and retries a read-only tool", async () => {
+    const first = conn({ alive: 1 }), second = conn();
+    const conns = [first.c, second.c];
+    const tools = resilient(async () => conns.shift()!);
+    expect(await tools.call("doordash_search", {})).toMatchObject({ success: true });
+    expect(await tools.call("doordash_menu", {})).toMatchObject({ success: true, name: "doordash_menu" });
+    expect(second.calls).toEqual(["doordash_menu"]);
+  });
+
+  it("retries a read-only tool once when the browser was closed", async () => {
+    const { c, calls } = conn({ transient: ["doordash_menu"] });
+    const tools = resilient(async () => c);
+    expect(await tools.call("doordash_menu", {})).toMatchObject({ success: true });
+    expect(calls).toEqual(["doordash_menu", "doordash_menu"]);
+  });
+
+  it("never retries a cart change, so nothing is added twice", async () => {
+    const t = conn({ transient: ["doordash_add_to_cart"] });
+    const tools = resilient(async () => t.c);
+    expect(await tools.call("doordash_add_to_cart", {})).toMatchObject({ success: false });
+    expect(t.calls).toEqual(["doordash_add_to_cart"]);
+    const dead = resilient(async () => conn({ alive: 0 }).c);
+    await expect(dead.call("doordash_add_to_cart", {})).rejects.toThrow(/Session not found/);
   });
 });

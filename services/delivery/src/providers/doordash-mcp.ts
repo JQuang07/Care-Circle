@@ -224,7 +224,58 @@ export class DoorDashMcpProvider implements Provider {
 }
 
 /** Real MCP client: Streamable HTTP (DOORDASH_MCP_URL + token) or stdio (DOORDASH_MCP_COMMAND). */
-export async function connectMcp(o: { url?: string; token?: string; command?: string }): Promise<ToolCaller> {
+/**
+ * Tools that only read: safe to run again after a hiccup. Cart changes and checkout are never
+ * retried, so an item can't be added twice.
+ */
+export const RETRYABLE_TOOLS = new Set(["doordash_auth_check", "doordash_set_address", "doordash_search", "doordash_menu", "doordash_cart"]);
+/** The browser was closed or a page was mid-navigation: the MCP server relaunches it, so one retry recovers. */
+export const transientToolError = (res: any) =>
+  res?.success === false && /closed|detached|Timeout \d+ms exceeded|navigation|Execution context was destroyed/i.test(String(res?.error ?? res?.raw ?? ""));
+
+/**
+ * Wraps a connect function: when the MCP server restarts, the old session is gone and every call
+ * fails. A connection-level failure reconnects once; a read-only tool is then retried once.
+ */
+export function resilient(connect: () => Promise<ToolCaller>, log: (m: string) => void = () => {}): ToolCaller {
+  let current: Promise<ToolCaller> | undefined;
+  const get = () => (current ??= connect().catch((e) => { current = undefined; throw e; }));
+  const reconnect = async (why: string) => {
+    log(`DoorDash MCP: reconnecting (${why})`);
+    const old = current;
+    current = undefined;
+    void old?.then((c) => c.close?.()).catch(() => undefined);
+    return get();
+  };
+  return {
+    async listTools() {
+      try { return await (await get()).listTools(); }
+      catch (e) { return (await reconnect(e instanceof Error ? e.message : String(e))).listTools(); }
+    },
+    async call(name, args) {
+      let res: any;
+      try { res = await (await get()).call(name, args); }
+      catch (e) {
+        if (!RETRYABLE_TOOLS.has(name)) throw e;
+        return (await reconnect(e instanceof Error ? e.message : String(e))).call(name, args);
+      }
+      if (RETRYABLE_TOOLS.has(name) && transientToolError(res)) {
+        log(`DoorDash MCP: retrying ${name} once (${String(res.error ?? "").split("\n")[0]})`);
+        res = await (await get()).call(name, args);
+      }
+      return res;
+    },
+    async close() { await (await current)?.close?.(); },
+  };
+}
+
+export async function connectMcp(o: { url?: string; token?: string; command?: string }, log?: (m: string) => void): Promise<ToolCaller> {
+  const tools = resilient(() => connectOnce(o), log);
+  await tools.listTools(); // fail at startup if the server isn't there, as before
+  return tools;
+}
+
+async function connectOnce(o: { url?: string; token?: string; command?: string }): Promise<ToolCaller> {
   const { Client } = await import("@modelcontextprotocol/sdk/client/index.js");
   const client = new Client({ name: "care-circle-delivery", version: "0.1.0" });
   if (o.url) {
