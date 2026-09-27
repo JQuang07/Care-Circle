@@ -16,7 +16,7 @@ export const CHECKOUT_PHRASE = "PLACE REAL ORDER";
 export const BROWSER_ALLOWED: Record<ServiceName, { GET: RegExp[]; POST: RegExp[] }> = {
   voice: {
     GET: [/^\/health$/, /^\/demo\/calls$/ /* D3 */],
-    POST: [/^\/demo\/simulate-inbound$/, /^\/demo\/simulate-verification$/ /* D3 */, /^\/demo\/reset$/ /* D1 */],
+    POST: [/^\/demo\/converse$/, /^\/demo\/converse\/[\w-]+\/end$/, /^\/demo\/simulate-inbound$/, /^\/demo\/simulate-verification$/ /* D3 */, /^\/demo\/reset$/ /* D1 */],
   },
   money: {
     GET: [/^\/health$/, /^\/orders$/, /^\/orders\/[\w-]+$/ /* D9 */, /^\/holds$/, /^\/credentials\/[\w-]+$/, /^\/eval\/results$/],

@@ -163,3 +163,8 @@ Passing: D16 guard, family + delivery reset.
 ### Earlier runs
 Run against the Phase 0 skeletons, at H3: **0/5 pass, as expected.** Each scenario stops at its first snapshot call with `404 NOT_FOUND` (for example `GET money /orders`), routed to Agent 2 or Agent 3. No bugs are filed yet, because the stubs are due at H8.
 Self-test against the fake stack: **5/5, 10 runs in a row.**
+
+## Demo MVP finish (integration-v3, single-machine finish by Agent 3's Claude)
+- New `/stage` page (`app/stage/page.tsx`): Rose's line (clips → `/api/stage/audio-turn` → voice `/demo/audio-turn`, reply spoken with speechSynthesis, event cards) + Lisa's and Danny's `Phone`s + Reset (D1 order).
+- New server routes: `app/api/stage/clips`, `app/api/stage/clip/[scenario]/[file]`, `app/api/stage/audio-turn` (multipart forwarder; adds X-CC-Secret server-side and the clip's .txt as STT fallback). `lib/clips.ts` reads `demo-audio/` (override with `DEMO_AUDIO_DIR`).
+- `lib/services.ts`: voice `POST /demo/converse` and `/demo/converse/:id/end` allowed through the proxy. Nav: "Stage" link.

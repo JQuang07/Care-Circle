@@ -145,7 +145,8 @@ export class MuseReasoner implements Reasoner {
       apiKey: c.metaKey,
       baseURL: "https://api.meta.ai/v1",
       timeout: c.museTimeoutMs,
-      maxRetries: 0,
+      // One retry on 429/5xx/timeout before the keyword fallback takes over.
+      maxRetries: 1,
     });
   }
   async next(

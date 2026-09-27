@@ -58,6 +58,35 @@ Then open http://localhost:3000.
 | `/call/:id` | The family video room (LiveKit). `?member=mem_lisa` joins as Lisa |
 | `/tablet` | Plan B for Rose: one big button, auto-answers only calls from her own schedule |
 
+## Run the demo
+
+Everything runs on one machine. No phone line, Twilio, tunnel or LiveKit is needed.
+
+1. **`.env` keys:**
+   - `CC_INTERNAL_SECRET` (≥24 chars) and `MOCK=1`. Here `MOCK=1` fakes only Twilio, LiveKit and payments.
+   - `META_API_KEY` with `MUSE_MODEL=muse-spark-1.3`. This key drives both Muse reasoning and Muse Voice Transcribe. Without it, voice falls back to the keyword bot and the `.txt` transcripts.
+   - Optional: `DEEPGRAM_API_KEY`, to transcribe mp3/m4a clips.
+   - Optional: `VOICE_REASONER=mock` forces the keyword bot, and `MUSE_TIMEOUT_MS` sets the Muse timeout (default 12000).
+   - DoorDash: `DELIVERY_PROVIDER=doordash_thirdparty` with `DOORDASH_MCP_URL`, `DOORDASH_MCP_TOKEN` (the same token the MCP server was started with), `DOORDASH_DROPOFF_ADDRESS`, `DOORDASH_GROCERY_STORE` and **`DOORDASH_LIVE_CHECKOUT=0`**. Or use `DELIVERY_PROVIDER=mock`. Check the DoorDash setup with `pnpm dd:check`.
+2. **Start it:** `docker compose up -d --wait`, `pnpm seed`, `pnpm dev`, then `pnpm health` (5 green).
+3. **Clips:** `demo-audio/<scenario>/01.wav, 02.wav, …`, each with a same-name `.txt` transcript. To replace a clip, record over it with the same name and update the `.txt`.
+   - WAV at 16 kHz mono goes straight to Muse. Other formats are converted in the browser, or sent to Deepgram.
+   - A transcript that starts with `mem_danny:` is spoken by Danny on the check-in call.
+4. **Open http://localhost:3000/stage.**
+   - Pick a scenario and press ▶ on each clip in order. The clip plays, is transcribed, Muse answers aloud, and event cards appear.
+   - Lisa's and Danny's phones on the right update live. In "Family call", tap the same time on both phones after clip 1.
+   - **Reset demo** restores every service to the seed.
+5. **Without a browser:** `pnpm demo:run all` (add `--text` to skip the audio). It prints each transcript, reply and event, then checks the end state.
+
+| Scenario | What should happen |
+|---|---|
+| Groceries | Priced by the delivery quote → paid → delivery DRY RUN cart → Lisa gets "add to order" |
+| Family call | A proposal goes to Lisa and Danny → they tap a time → Rose says yes → the call is scheduled (shown as a card) |
+| Scam call | High-risk hold → fraud card to Danny → check-in call → Danny says cancel → hold cancelled. Rose is never scolded |
+| Mia's gift | Low risk, sent through Lisa (D7) → paid |
+
+**DoorDash is an unofficial third-party integration: dry run only.** No real DoorDash order is placed in the demo.
+
 ## What's real and what's simulated
 
 With the team default (`MOCK=1`, `MOCK_DEPENDENCIES=0`), all five services run their real code and call each other over HTTP. `MOCK=1` only fakes the **outside** providers (D15).
