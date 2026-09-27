@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildApp } from "../src/app";
 import { loadConfig, type Config } from "../src/config";
+import { classify } from "../src/match";
 import { MockProvider } from "../src/providers/mock";
 import type { Provider } from "../src/providers/provider";
 import { DeliveryService, type MoneyClient, type MoneyOrder } from "../src/service";
@@ -31,6 +32,17 @@ describe("delivery · quote", () => {
     expect(q.subtotalCents).toBe(429 + 189 + 379);
     expect(q.feesCents).toBe(299);
     expect(q.totalCents).toBe(429 + 189 + 379 + 299);
+  });
+
+  it("a generic word takes the store's staple; without one it stays ambiguous", async () => {
+    const { app } = setup();
+    const r = await app.inject({ method: "POST", url: "/quote", headers: H,
+      payload: { kind: "grocery", items: [{ name: "a gallon of milk", qty: 1 }, { name: "oat milk", qty: 1 }] } });
+    const [milk, oat] = r.json().lines;
+    expect(milk).toMatchObject({ status: "matched", matched: { name: "Whole Milk, 1 gal", priceCents: 429 } });
+    expect(oat).toMatchObject({ status: "matched", matched: { name: "Oat Milk, 64 oz" } });
+    const plain = [{ name: "Whole Milk", priceCents: 429 }, { name: "Skim Milk", priceCents: 399 }];
+    expect(classify("milk", plain).status).toBe("ambiguous"); // real DoorDash catalogs carry no staples
   });
 
   it("requires the shared secret on everything but /health", async () => {

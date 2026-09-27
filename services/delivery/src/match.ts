@@ -21,7 +21,8 @@ export function score(query: string, candidate: string): number {
   return Math.max(0, Math.min(1, s));
 }
 
-export interface Priced { name: string; priceCents: number }
+/** `staple` marks a store's house default for a generic word ("milk" → whole milk). Only the mock sets it. */
+export interface Priced { name: string; priceCents: number; staple?: boolean }
 
 export function rank(query: string, items: Priced[]) {
   return items
@@ -36,6 +37,9 @@ export function classify(query: string, items: Priced[]) {
   if (!r.length) return { status: "not_found" as const };
   const [a, b] = r;
   if (b && a!.s - b.s < 0.05 && a!.it.name.toLowerCase() !== b.it.name.toLowerCase()) {
+    const tied = r.filter((x) => a!.s - x.s < 0.05);
+    const staples = tied.filter((x) => x.it.staple);
+    if (staples.length === 1) return { status: "matched" as const, item: staples[0]!.it };
     return { status: "ambiguous" as const, options: r.slice(0, 3).map((x) => x.it) };
   }
   return { status: "matched" as const, item: a!.it };
