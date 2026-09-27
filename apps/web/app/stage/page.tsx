@@ -53,8 +53,10 @@ function card(e: DemoEvent): { tone: string; title: string; body: string } | und
       const dd = d.cart?.provider === "doordash_thirdparty" || /DoorDash/.test(e.summary);
       return {
         tone: "leaf",
-        title: dd ? "DoorDash · DRY RUN" : "Delivery · DRY RUN (mock)",
-        body: `Cart ${money(d.cart?.cartTotalCents)} at ${d.cart?.storeName ?? "the store"}. No real order placed.`,
+        title: `Ordered from ${(d.cart?.storeName ?? "the store").replace(/\s*\(demo\)$/i, "")}`,
+        body: dd
+          ? `DoorDash cart ${money(d.cart?.cartTotalCents)} · stopped at DoorDash checkout (DRY RUN, no charge).`
+          : `Cart ${money(d.cart?.cartTotalCents)} · mock delivery (DRY RUN, no charge).`,
       };
     }
     case "hold.placed":

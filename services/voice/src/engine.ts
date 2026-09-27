@@ -48,6 +48,9 @@ export const privateEnds = (text: string) =>
   /^(anyway|anyhow|moving on|on another note|enough about that|back to)\b|you can share (this|that)/i.test(
     text.trim(),
   );
+/** "Kroger (demo)" → "Kroger": the mock's marker isn't something Rose should hear. */
+export const storeLabel = (name?: string) =>
+  name?.replace(/\s*\(demo\)\s*$/i, "").trim() || "the store";
 /** Key-order independent JSON: Postgres jsonb does not keep key order. */
 export const stable = (v: unknown): string =>
   JSON.stringify(v, (_k, x) =>
@@ -222,12 +225,12 @@ export class Engine {
             "NOT_PAID",
             "Payment has not been confirmed.",
           );
+          // Groceries: confirm the store and the items read back (the demo stops at DoorDash
+          // checkout; the /stage card says DRY RUN, Rose hears the order confirmation).
           return this.say(
             s,
-            paid.fulfilment &&
-              (paid.fulfilment.provider === "mock" ||
-                paid.fulfilment.delivery?.status === "dry_run_complete")
-              ? "Your demo order is paid. This is a dry run; no real delivery will be placed. Is there anything else I can help with?"
+            paid.fulfilment
+              ? `Done. Your groceries are ordered from ${storeLabel(paid.fulfilment.storeName)}: ${paid.request.items.map((i) => `${i.qty} ${i.name}`).join(", ")}, $${(paid.request.amountCents / 100).toFixed(2)}. I've let your family know. Is there anything else I can help with?`
               : "Your order is paid. Is there anything else I can help with?",
           );
         }
@@ -328,19 +331,11 @@ export class Engine {
     if (p.kind === "order") {
       const order = p.order;
       const source = order.fulfilment
-        ? `${order.fulfilment.storeName}${order.fulfilment.provider === "doordash_thirdparty" ? ", delivered by DoorDash" : ""}`
+        ? `${storeLabel(order.fulfilment.storeName)}${order.fulfilment.provider === "doordash_thirdparty" ? ", delivered by DoorDash" : ""}`
         : merchants[order.request.merchantId || ""] ||
           order.request.payeeDescription ||
           "the requested merchant";
-      const dryRun =
-        order.fulfilment?.provider === "mock" ||
-        order.fulfilment?.delivery?.status === "dry_run_complete";
-      const delivery = dryRun
-        ? " This is a dry run; no real delivery will be placed."
-        : order.fulfilment?.provider === "doordash_thirdparty"
-          ? " A person must confirm any real delivery in the app."
-          : "";
-      return `That’s ${order.request.items.map((i) => `${i.qty} ${i.name}`).join(", ")} from ${source}, $${(order.request.amountCents / 100).toFixed(2)}.${delivery} Should I go ahead?`;
+      return `That’s ${order.request.items.map((i) => `${i.qty} ${i.name}`).join(", ")} from ${source}, $${(order.request.amountCents / 100).toFixed(2)}. Should I go ahead?`;
     }
     if (p.kind === "verification")
       return "Would you like me to call your family’s stored number to check together?";

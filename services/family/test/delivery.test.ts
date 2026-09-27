@@ -29,7 +29,7 @@ describe("delivery-status webhook", () => {
 
   it("dry_run_complete → only Lisa hears the groceries are ready", async () => {
     await post(ev("dry_run_complete"));
-    expect(await texts("mem_lisa")).toEqual(["Rose's groceries from FreshMart are ready (demo: no real delivery)."]);
+    expect(await texts("mem_lisa")).toEqual(["✅ Order confirmed: Rose's groceries are ordered from FreshMart. (Demo: DoorDash checkout reached, no real charge.)"]);
     expect(await texts("mem_danny")).toEqual([]);
     expect(await texts("mem_mark")).toEqual([]);
   });
@@ -75,6 +75,6 @@ describe("delivery-status webhook", () => {
   it("an event with only the documented fields is routed by looking the delivery up", async () => {
     ctx.delivery.orders.push({ deliveryId: "dlv_9", orderId: "ord_9", seniorId: "sen_rose", storeName: "Corner Grocer", status: "dry_run_complete" });
     await post({ deliveryId: "dlv_9", orderId: "ord_9", status: "dry_run_complete" });
-    expect(await texts("mem_lisa")).toEqual(["Rose's groceries from Corner Grocer are ready (demo: no real delivery)."]);
+    expect(await texts("mem_lisa")).toEqual(["✅ Order confirmed: Rose's groceries are ordered from Corner Grocer. (Demo: DoorDash checkout reached, no real charge.)"]);
   });
 });

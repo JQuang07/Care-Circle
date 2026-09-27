@@ -5,6 +5,7 @@ import { ServiceError } from "../adapters/services.js";
 import { getCircle } from "./circle.js";
 import { sendMessage } from "./messages.js";
 import { once } from "./once.js";
+import { storeLabel } from "./orders.js";
 
 /**
  * D14 event from services/delivery. `seniorId` and `storeName` are extras delivery adds;
@@ -35,7 +36,7 @@ export async function handleDeliveryStatus(deps: Deps, ev: DeliveryStatusEvent):
   if (!(await once(deps, `delivery:${ev.deliveryId}:${ev.status}`))) return;
 
   const { senior, members } = await getCircle(deps, seniorId!);
-  const store = storeName || "the store";
+  const store = storeLabel(storeName) || "the store";
   const eta = ev.etaText ? `, arriving ${ev.etaText}` : "";
   const track = ev.trackingUrl ? { actions: [{ label: "Track delivery", action: "open_url", payload: { url: ev.trackingUrl } }] } : {};
   const send = async (to: Member[], body: string, extra = {}) => {
@@ -46,7 +47,8 @@ export async function handleDeliveryStatus(deps: Deps, ev: DeliveryStatusEvent):
     case "dry_run_complete": {
       // The primary contact: the first verifier in circle order (Lisa in the seed).
       const primary = members.find((m) => m.isVerifier) ?? members[0];
-      await send([primary], `${senior.name}'s groceries from ${store} are ready (demo: no real delivery).`);
+      // Demo: the DoorDash cart is built and checkout reached; the real order button is never pressed.
+      await send([primary], `✅ Order confirmed: ${senior.name}'s groceries are ordered from ${store}. (Demo: DoorDash checkout reached, no real charge.)`);
       return;
     }
     case "placed":

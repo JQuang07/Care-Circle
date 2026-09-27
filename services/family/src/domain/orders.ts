@@ -19,13 +19,18 @@ function itemSummary(order: Order): string {
   return ` (${names.slice(0, 3).join(", ")} + ${names.length - 3} more)`;
 }
 
+/** "Kroger (demo)" → "Kroger": the mock's marker is for engineers, not family messages. */
+export const storeLabel = (name?: string) => name?.replace(/\s*\(demo\)\s*$/i, "").trim() || undefined;
+
 /** order.paid → receipts for funders; groceries → "add something?" to the whole circle. */
 export async function handleOrderPaid(deps: Deps, order: Order): Promise<void> {
   if (!order?.id || !order.seniorId || !order.request) throw badRequest("invalid Order payload");
   if (!(await once(deps, `order-paid:${order.id}`))) return;
   const { senior, members } = await getCircle(deps, order.seniorId);
   const merchant = order.request.merchantId ? MERCHANTS[order.request.merchantId]?.name : undefined;
-  const at = merchant ?? order.request.payeeDescription ?? "the store";
+  // Groceries: the store delivery actually used (D9 fulfilment), e.g. "Kroger".
+  const store = storeLabel((order as { fulfilment?: { storeName?: string } }).fulfilment?.storeName);
+  const at = store ?? merchant ?? order.request.payeeDescription ?? "the store";
 
   if (order.request.type === "gift") {
     await deps.store.moments.put({ id: newId("evt"), seniorId: senior.id, type: "gift", at: deps.clock.now().toISOString(), amountCents: order.request.amountCents, ref: order.id });

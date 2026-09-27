@@ -615,7 +615,7 @@ test("D4 body phase wins over header and reminders do not consume due dispatch",
   );
 });
 
-test("D9 reads money's actual quote, names the store and never promises dry-run delivery", async () => {
+test("D9 reads money's actual quote, names the store and confirms the order from it", async () => {
   const f = await fixture();
   const original = f.deps.call.bind(f.deps);
   f.deps.call = async <T>(
@@ -639,9 +639,11 @@ test("D9 reads money's actual quote, names the store and never promises dry-run 
   assert.match(text, /Kroger, delivered by DoorDash/);
   assert.match(text, /\$17.89/);
   assert.doesNotMatch(text, /\$23.00/);
-  assert.match(text, /dry run; no real delivery/);
   await f.engine.delivered(f.s);
-  assert.match(await f.engine.turn(f.s, "yes"), /dry run; no real delivery/);
+  // Demo confirmation names the store and repeats money's price (the /stage card says DRY RUN).
+  const done = await f.engine.turn(f.s, "yes");
+  assert.match(done, /ordered from Kroger/);
+  assert.match(done, /\$17.89/);
 });
 test("D9 missing items require one clarification and skip re-quotes before payment", async () => {
   const f = await fixture();

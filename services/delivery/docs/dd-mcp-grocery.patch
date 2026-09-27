@@ -1,5 +1,5 @@
 diff --git a/src/browser.ts b/src/browser.ts
-index 8a376f3..8503cd0 100644
+index 8a376f3..d4339cb 100644
 --- a/src/browser.ts
 +++ b/src/browser.ts
 @@ -419,8 +419,75 @@ export async function searchRestaurants(
@@ -218,7 +218,7 @@ index 8a376f3..8503cd0 100644
        subtotal: subtotalMatch ? parseFloat(subtotalMatch[1]) : 0,
        total: totalMatch ? parseFloat(totalMatch[1]) : 0,
      };
-@@ -684,23 +826,60 @@ export async function getCart(): Promise<{ success: boolean; items?: CartItem[];
+@@ -684,26 +826,87 @@ export async function getCart(): Promise<{ success: boolean; items?: CartItem[];
  /**
   * Place order (with confirmation step - returns order summary, doesn't actually place without confirmation)
   */
@@ -226,26 +226,37 @@ index 8a376f3..8503cd0 100644
 + * Empty the cart: open the drawer and press each row's remove button (at quantity 1 the
 + * stepper's decrement removes the row). For re-running dry runs; a person asks for it.
 + */
-+export async function clearCart(): Promise<{ success: boolean; removed?: number; error?: string }> {
++export async function clearCart(): Promise<{ success: boolean; removed?: number; remaining?: number; page?: string; error?: string }> {
 +  const p = await getPage();
 +  const ctx = await getContext();
 +  try {
++    // Checkout/aisle pages don't host the drawer; otherwise stay put (a reload's redirect
++    // would close the drawer we are about to open).
 +    await ensureOnDoorDash(p);
-+    await p.keyboard.press("Escape").catch(() => {});
-+    await p.locator('[data-testid="OrderCartIconButton"]').first().click({ timeout: 10000 });
-+    const drawer = p.locator('[data-testid="OrderCart"]').first();
-+    await drawer.waitFor({ timeout: 8000 }).catch(() => {});
++    if (/checkout/i.test(p.url())) {
++      await p.goto(DOORDASH_BASE_URL, { waitUntil: "load", timeout: DEFAULT_TIMEOUT });
++      await p.waitForTimeout(4000);
++    }
++    const row = '[data-testid="OrderCart"] [data-anchor-id="OrderCartItem"]';
++    const openDrawer = async () => {
++      await p.keyboard.press("Escape").catch(() => {});
++      await p.locator('[data-testid="OrderCartIconButton"]').first().click({ timeout: 10000 });
++      await p.locator(row).first().waitFor({ timeout: 8000 }).catch(() => {});
++    };
++    await openDrawer();
++    if (!(await p.locator(row).count())) await openDrawer(); // one retry
 +    let removed = 0;
 +    for (let i = 0; i < 60; i++) {
-+      const rows = await drawer.locator('[data-anchor-id="OrderCartItem"]').count().catch(() => 0);
-+      if (!rows) break;
-+      await drawer.locator('[data-testid="stepper-decrement-button"]').first().click({ timeout: 5000 });
++      if (!(await p.locator(row).count().catch(() => 0))) break;
++      await p.locator('[data-testid="OrderCart"] [data-testid="stepper-decrement-button"]').first().click({ timeout: 5000 });
 +      removed++;
-+      await p.waitForTimeout(900);
++      await p.waitForTimeout(1000);
 +    }
++    const iconLabel = await p.locator('[data-testid="OrderCartIconButton"]').first().getAttribute("aria-label").catch(() => null);
++    const remaining = iconLabel ? Number(/^(\d+) item/.exec(iconLabel)?.[1] ?? NaN) : undefined;
 +    await p.keyboard.press("Escape").catch(() => {});
 +    await saveCookies(ctx);
-+    return { success: true, removed };
++    return { success: remaining === undefined || remaining === 0, removed, remaining, page: p.url() };
 +  } catch (error) {
 +    return { success: false, error: error instanceof Error ? error.message : "Failed to clear cart" };
 +  }
@@ -281,14 +292,32 @@ index 8a376f3..8503cd0 100644
 +      await p.waitForTimeout(2000);
 +    }
 +
++    // Grocery stores show an upsell "aisle" page first; its "Continue to checkout" leads to the
++    // real checkout page (order summary with fees). Continuing places nothing.
++    if (/checkout_aisle_page/.test(p.url())) {
++      const next = p.locator('button:has-text("Continue to checkout"), a:has-text("Continue to checkout")').first();
++      if (await next.isVisible({ timeout: 5000 }).catch(() => false)) {
++        await next.click({ timeout: 10000 });
++        await p.waitForURL((u) => /\/checkout/.test(u.pathname) && !/checkout_aisle_page/.test(u.href), { timeout: 25000 }).catch(() => {});
++        await p.waitForTimeout(4000);
++      }
++    }
++
 +    // Get order summary (bounded: a slow checkout page must not hang the preview)
      const items: CartItem[] = [];
 -    const pageText = await p.textContent('body') || "";
 +    const pageText = await p.locator("body").innerText({ timeout: 10000 }).catch(() => "");
      
-     // Extract total from page
-     const totalMatch = pageText.match(/Total[:\s]*\$(\d+\.?\d*)/i);
-@@ -718,6 +897,8 @@ export async function placeOrder(
+-    // Extract total from page
+-    const totalMatch = pageText.match(/Total[:\s]*\$(\d+\.?\d*)/i);
++    // Extract total: the checkout page's "Place Order $8.76" button carries the full total
++    // (items + fees + tax); fall back to a "Total $x" line elsewhere.
++    const placeOrderText = await p.locator('button:has-text("Place Order")').first().innerText({ timeout: 3000 }).catch(() => "");
++    const totalMatch = /\$(\d+\.?\d*)/.exec(placeOrderText) || pageText.match(/Total[:\s]*\$(\d+\.?\d*)/i);
+     const total = totalMatch ? parseFloat(totalMatch[1]) : 0;
+     
+     // Extract delivery info
+@@ -718,6 +921,8 @@ export async function placeOrder(
        return {
          success: true,
          requiresConfirmation: true,
