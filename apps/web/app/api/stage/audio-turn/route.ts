@@ -1,7 +1,8 @@
 /**
  * Browser → voice /demo/audio-turn. Multipart can't go through the JSON proxy, so this
  * forwards the form as-is, adds X-CC-Secret on the server, and attaches the clip's .txt
- * as the speech-to-text fallback. The secret never reaches the browser.
+ * as the speech-to-text fallback. The secret never reaches the browser. `?step=transcribe`
+ * returns only the transcript; the stage then sends the text to voice /demo/converse.
  */
 import { NextResponse, type NextRequest } from "next/server";
 import { serviceBaseUrl } from "@/lib/services";
@@ -18,7 +19,9 @@ export async function POST(req: NextRequest) {
   const text = typeof scenario === "string" && typeof clip === "string" ? sidecar(scenario, clip) : undefined;
   if (text) out.append("sidecar", text);
   try {
-    const upstream = await fetch(`${serviceBaseUrl("voice")}/demo/audio-turn`, {
+    // ?step=transcribe: speech-to-text only, so the stage can show Rose's words before the reply.
+    const path = req.nextUrl.searchParams.get("step") === "transcribe" ? "/demo/transcribe" : "/demo/audio-turn";
+    const upstream = await fetch(`${serviceBaseUrl("voice")}${path}`, {
       method: "POST",
       headers: { "x-cc-secret": process.env.CC_INTERNAL_SECRET ?? "" },
       body: out,

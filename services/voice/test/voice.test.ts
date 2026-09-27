@@ -439,6 +439,8 @@ test("D16 accepts natural confirmations but rejects hesitation and changes", () 
     "sure",
     "That's right.",
     "Okay, please do.",
+    "Yes please. Thank you. Thank you so much.",
+    "Yes, thanks very much.",
   ])
     assert.equal(affirmative(text), true, text);
   for (const text of [
@@ -452,6 +454,7 @@ test("D16 accepts natural confirmations but rejects hesitation and changes", () 
     "Yes, tomorrow",
     "Sure, for Danny",
     "Yes, not yet",
+    "Yes, thank you, and some eggs",
   ])
     assert.equal(affirmative(text), false, text);
 });

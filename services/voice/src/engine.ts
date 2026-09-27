@@ -37,7 +37,7 @@ export const affirmative = (text: string, allowed: string[] = []) => {
   return (
     rest
       .replace(
-        /\b(that's everything|that is everything|that's right|go ahead|please do|(order|send) (it|them)|place (the|my) order|with (the|my|that) order|(that )?sounds (lovely|good|great|perfect|wonderful|fine)|that works( for me)?|set it up|book it|yes|yeah|okay|ok|sure|confirm|please|and|thank you|thanks)\b/g,
+        /\b(that's everything|that is everything|that's right|go ahead|please do|(order|send) (it|them)|place (the|my) order|with (the|my|that) order|(that )?sounds (lovely|good|great|perfect|wonderful|fine)|that works( for me)?|set it up|book it|(thank you|thanks)( (so|very) much)?|yes|yeah|okay|ok|sure|confirm|please|and)\b/g,
         "",
       )
       .replace(/[.,!\s]/g, "") === ""

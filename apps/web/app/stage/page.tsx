@@ -196,6 +196,8 @@ export default function Stage() {
   const [done, setDone] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState<string>();
   const [status, setStatus] = useState<string>();
+  // Where the current turn is: speech-to-text, then the reply (Muse + tools), then speaking it.
+  const [phase, setPhase] = useState<"Transcribing…" | "Thinking…" | "Speaking…">();
   const [typed, setTyped] = useState("");
   const [toasts, setToasts] = useState<Record<string, string>>({});
   const [tick, setTick] = useState(0);
@@ -235,7 +237,7 @@ export default function Stage() {
     fetch("/api/stage/clips").then((r) => r.json()).then((b) => setScenarios(b.scenarios ?? [])).catch(() => setStatus("Couldn't list demo-audio clips."));
     speechSynthesis?.getVoices();
   }, []);
-  useEffect(() => { log.current?.scrollTo({ top: log.current.scrollHeight, behavior: "smooth" }); }, [turns, events]);
+  useEffect(() => { log.current?.scrollTo({ top: log.current.scrollHeight, behavior: "smooth" }); }, [turns, events, phase]);
 
   const phones = usePoll<{ inboxes: Record<string, Message[]>; orders: Order[]; delivery: DeliveryInfo }>(async (signal) => {
     const [inboxes, orders, delivery] = await Promise.all([
@@ -319,9 +321,43 @@ export default function Stage() {
   const heard = (who: string, text: string) =>
     setTurns((t) => [...t, { who, text, by: "listening…", kind: "in", pending: true }]);
   const unheard = () => setTurns((t) => t.filter((x) => !x.pending));
+  /** The transcript is back: Rose's real words replace the placeholder straight away. */
+  const transcribed = (text: string, by: string) =>
+    setTurns((t) => t.map((x) => (x.pending ? { ...x, text, by } : x)));
+  const settled = () => setTurns((t) => t.map((x) => (x.pending ? { ...x, pending: false } : x)));
+
+  /**
+   * One spoken turn in two steps: speech-to-text first (its result shows at once), then the
+   * reply from voice /demo/converse, which can take a minute when it quotes DoorDash.
+   */
+  const transcribe = (form: FormData) => fetch("/api/stage/audio-turn?step=transcribe", { method: "POST", body: form });
+  const audioTurn = async (stt: Promise<Response>, speaker: string | undefined, sid: string | undefined) => {
+    const who_ = speaker ? who(speaker) : "Rose";
+    const member = !!speaker;
+    setPhase("Transcribing…");
+    const res = await stt;
+    const t = await res.json();
+    if (!res.ok) throw new Error(t?.error ? `${t.error.code}: ${t.error.message}` : "speech-to-text failed");
+    const by = HEARD_BY[t.transcribedBy] ?? t.transcribedBy;
+    if (!t.transcript) {
+      transcribed("", by); settled();
+      const sorry = "I'm sorry, I didn't catch that. Could you say it again?";
+      setTurns((ts) => [...ts, { who: "Care Circle (AI voice)", text: sorry, kind: "out" }]);
+      setPhase("Speaking…");
+      return speak(sorry, member);
+    }
+    transcribed(t.transcript, by);
+    setPhase("Thinking…");
+    const req = svc<any>("voice", "/demo/converse", { method: "POST", body: { sessionId: sid, seniorId: "sen_rose", text: t.transcript, speaker } });
+    const stopHold = holdOn(req, member);
+    const r = await req.finally(stopHold);
+    if (!r.ok) { settled(); throw new Error(explain(r)); }
+    await handle({ ...r.data, transcript: t.transcript, transcribedBy: t.transcribedBy }, who_, member);
+  };
 
   const handle = async (r: any, who: string, member: boolean) => {
     setSessionId(r.sessionId);
+    setPhase("Speaking…");
     setTurns((t) => {
       const said: Turn = { who, text: r.transcript ?? "", by: HEARD_BY[r.transcribedBy] ?? r.transcribedBy, kind: "in" };
       const reply: Turn = { who: "Care Circle (AI voice)", text: r.reply, by: r.reasonedBy === "mock" ? "keyword fallback" : "Muse", kind: "out" };
@@ -349,20 +385,16 @@ export default function Stage() {
       if (clip.speaker) form.append("speaker", clip.speaker);
       form.append("scenario", active);
       form.append("clip", clip.file);
-      // Transcribe while the clip plays; show the result once Rose has finished speaking.
-      const pending = fetch("/api/stage/audio-turn", { method: "POST", body: form }).then(async (res) => ({ ok: res.ok, body: await res.json() }));
+      const stt = transcribe(form); // runs while the clip plays
       await played;
       heard(clip.speaker ? who(clip.speaker) : "Rose", clip.text);
-      const stopHold = holdOn(pending, !!clip.speaker);
-      const r = await pending.finally(stopHold);
-      if (!r.ok) throw new Error(r.body?.error ? `${r.body.error.code}: ${r.body.error.message}` : "voice failed");
-      await handle(r.body, clip.speaker ? who(clip.speaker) : "Rose", !!clip.speaker);
+      await audioTurn(stt, clip.speaker, sessionId);
       setDone((d) => new Set(d).add(clip.file));
     } catch (e) {
       unheard();
       setStatus((e as Error).message);
     } finally {
-      setBusy(undefined);
+      setBusy(undefined); setPhase(undefined);
     }
   };
 
@@ -377,18 +409,13 @@ export default function Stage() {
       form.append("seniorId", "sen_rose");
       if (sid) form.append("sessionId", sid);
       if (as !== "senior") form.append("speaker", as);
-      const req = fetch("/api/stage/audio-turn", { method: "POST", body: form });
       heard(as === "senior" ? "Rose" : who(as), "…");
-      const stopHold = holdOn(req, as !== "senior");
-      const res = await req.finally(stopHold);
-      const body = await res.json();
-      if (!res.ok) throw new Error(body?.error ? `${body.error.code}: ${body.error.message}` : "voice failed");
-      await handle(body, as === "senior" ? "Rose" : who(as), as !== "senior");
+      await audioTurn(transcribe(form), as === "senior" ? undefined : as, sid);
     } catch (e) {
       unheard();
       setStatus((e as Error).message);
     } finally {
-      setBusy(undefined);
+      setBusy(undefined); setPhase(undefined);
     }
   };
 
@@ -445,7 +472,7 @@ export default function Stage() {
   const sendTyped = async () => {
     const text = typed.trim();
     if (!text || busy) return;
-    setBusy("typed"); setTyped("");
+    setBusy("typed"); setTyped(""); setPhase("Thinking…");
     const req = svc<any>("voice", "/demo/converse", { method: "POST", body: { sessionId, seniorId: "sen_rose", text } });
     heard("Rose", text);
     await speak(text, false, "rose"); // Rose says it aloud while the turn runs
@@ -453,7 +480,7 @@ export default function Stage() {
     const r = await req.finally(stopHold);
     if (r.ok) await handle({ ...r.data, transcript: text, transcribedBy: "typed" }, "Rose", false);
     else { unheard(); setStatus(explain(r)); }
-    setBusy(undefined);
+    setBusy(undefined); setPhase(undefined);
   };
 
   const reset = async () => {
@@ -511,7 +538,7 @@ export default function Stage() {
               aria-pressed={!!mic} aria-label={mic ? "Stop and send" : "Speak into the microphone"}
               className={`flex h-14 items-center gap-2 rounded-full px-5 text-[17px] font-bold text-white disabled:opacity-50 ${mic ? "animate-pulse bg-alarm shadow-[inset_0_1px_0_rgb(255_255_255/0.3)]" : "glass-ink"}`}>
               <span aria-hidden>{mic ? "■" : "🎙"}</span>
-              {mic ? `Listening… 0:${String(elapsed).padStart(2, "0")} · tap to send` : busy === "mic" ? "Transcribing…" : "Speak"}
+              {mic ? `Listening… 0:${String(elapsed).padStart(2, "0")} · tap to send` : busy === "mic" ? phase ?? "Working…" : "Speak"}
             </button>
             <fieldset className="flex items-center gap-1 text-[15px]" disabled={!!mic || !!busy}>
               <legend className="sr-only">Who is speaking</legend>
@@ -555,6 +582,13 @@ export default function Stage() {
                 </div>
               </div>
             ))}
+            {phase && (
+              <p className={`flex ${phase === "Transcribing…" ? "" : "justify-end"}`}>
+                <span className="glass-soft animate-pulse rounded-full px-3 py-1 text-[13.5px] text-heron">
+                  {phase === "Transcribing…" ? "Transcribing…" : phase === "Thinking…" ? "Care Circle is thinking…" : "Care Circle is speaking…"}
+                </span>
+              </p>
+            )}
           </div>
 
           <form className="mt-2 flex gap-2" onSubmit={(e) => { e.preventDefault(); void sendTyped(); }}>

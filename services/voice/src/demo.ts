@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import multipart from "@fastify/multipart";
 import { writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -292,7 +292,8 @@ export async function registerConverse(
 
   await app.register(multipart, { limits: { fileSize: 25 * 1024 * 1024, files: 1 } });
   // Recorded clip → speech-to-text → the same turn as /demo/converse.
-  app.post("/demo/audio-turn", async (request) => {
+  /** Multipart upload → transcript (Muse Voice Transcribe, then Deepgram, then the clip's .txt). */
+  async function heard(request: FastifyRequest) {
     assert(c.mock, "DEMO_DISABLED", "Demo turns are available only in MOCK=1.", 403);
     const fields: Record<string, string> = {};
     let audio: Audio | undefined;
@@ -310,6 +311,15 @@ export async function registerConverse(
       writeFileSync(`${base}.json`, JSON.stringify({ at: new Date().toISOString(), bytes: audio!.buffer.length, filename: audio!.filename, mimetype: audio!.mimetype, ...t }, null, 1));
     } catch { /* diagnostics only */ }
     console.log(`[voice] audio-turn ${audio!.buffer.length} B → ${t.transcribedBy}: "${t.transcript.slice(0, 80)}"`);
+    return { t, fields };
+  }
+  // Transcript only: the stage shows Rose's words at once, then sends them to /demo/converse.
+  app.post("/demo/transcribe", async (request) => {
+    const { t } = await heard(request);
+    return { transcript: t.transcript, transcribedBy: t.transcribedBy, cached: !!t.cached };
+  });
+  app.post("/demo/audio-turn", async (request) => {
+    const { t, fields } = await heard(request);
     const base = converseBody.omit({ text: true }).parse({
       sessionId: fields.sessionId || undefined,
       seniorId: fields.seniorId,
