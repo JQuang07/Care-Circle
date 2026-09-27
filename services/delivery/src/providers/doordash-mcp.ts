@@ -32,7 +32,7 @@ export class DoorDashMcpProvider implements Provider {
   private checkedTools = false;
   private addressSet = false;
 
-  constructor(private tools: ToolCaller, private opts: { dropoffAddress?: string; defaultGroceryStore: string; feeBaseCents?: number; feePct?: number }) {}
+  constructor(private tools: ToolCaller, private opts: { dropoffAddress?: string; defaultGroceryStore: string; feeBaseCents?: number; feePct?: number; clearStaleCart?: boolean }) {}
 
   /** DoorDash only shows fees/tax in the cart, so quote a conservative estimate; the price gate catches surprises. */
   estimateFeesCents(subtotalCents: number) {
@@ -174,10 +174,18 @@ export class DoorDashMcpProvider implements Provider {
   buildCart(store: Store, lines: { name: string; qty: number }[]) {
     return this.run(async (): Promise<CartResult> => {
       await this.ready();
-      // The server has no "clear cart" tool: refuse to build on top of someone else's cart.
-      const before = await this.call("doordash_cart");
-      if (Array.isArray(before?.items) && before.items.length) {
-        throw new ProviderError("CART_NOT_EMPTY", "The DoorDash cart already has items. Empty it in the DoorDash app/browser profile first.");
+      // Never build on top of someone else's cart. On the checkout page the item rows aren't
+      // shown, so a non-zero subtotal also counts as "not empty".
+      const full = (c: any) => (Array.isArray(c?.items) && c.items.length > 0) || (typeof c?.subtotal === "number" && c.subtotal > 0);
+      let before = await this.call("doordash_cart");
+      if (full(before) && this.opts.clearStaleCart) {
+        // Dry run only: the demo account's cart still holds the last rehearsal. Nothing is
+        // ever bought in a dry run, so empty it and build fresh. Live mode still refuses.
+        await this.call("doordash_clear_cart");
+        before = await this.call("doordash_cart");
+      }
+      if (full(before)) {
+        throw new ProviderError("CART_NOT_EMPTY", "The DoorDash cart already has items. Empty it with `pnpm dd:check -- --clear-cart` first.");
       }
       for (const l of lines) {
         await this.call("doordash_add_to_cart", { restaurantId: store.id, itemName: l.name, quantity: l.qty });

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DoorDashMcpProvider, REQUIRED_TOOLS, resilient, type ToolCaller } from "../src/providers/doordash-mcp";
 
 /** A fake of the davidgibbons/striderlabs DoorDash MCP server's tool results. */
-function fakeServer(o: { loggedIn?: boolean; tools?: string[]; startCart?: any[] } = {}) {
+function fakeServer(o: { loggedIn?: boolean; tools?: string[]; startCart?: any[]; hiddenRows?: boolean } = {}) {
   const calls: { name: string; args: any }[] = [];
   let cart: any[] = o.startCart ?? [];
   const tools = o.tools ?? [...REQUIRED_TOOLS, "doordash_set_address"];
@@ -16,7 +16,8 @@ function fakeServer(o: { loggedIn?: boolean; tools?: string[]; startCart?: any[]
         case "doordash_search": return { success: true, restaurants: [{ id: "store_42", name: "Safeway" }] };
         case "doordash_menu": return { success: true, categories: [{ name: "Dairy", items: [{ id: "1", name: "Whole Milk 1 gal", price: 4.29 }, { id: "2", name: "Bananas", price: 1.89 }] }] };
         case "doordash_add_to_cart": cart.push({ name: args.itemName, quantity: args.quantity, price: 0 }); return { success: true };
-        case "doordash_cart": return { success: true, items: cart, subtotal: 6.18, total: 9.99 };
+        case "doordash_cart": return { success: true, items: o.hiddenRows ? [] : cart, subtotal: cart.length ? 6.18 : 0, total: cart.length ? 9.99 : 0 };
+        case "doordash_clear_cart": cart = []; o.hiddenRows = false; return { success: true, removed: 1 };
         case "doordash_checkout": return args.confirm ? { success: true, orderId: "dd_987", summary: { total: 9.99 } } : { success: true, requiresConfirmation: true, summary: { total: 9.99, estimatedDelivery: "30-40 min" } };
         case "doordash_track_order": return { success: true, status: { status: "Dasher is heading to you" } };
         default: return { success: false, error: "unknown tool" };
@@ -40,6 +41,18 @@ describe("DoorDash MCP provider (tool mapping)", () => {
     expect(pv).toEqual({ totalCents: 999, etaText: "30-40 min" });
     expect(calls.filter((c) => c.name === "doordash_checkout").every((c) => c.args.confirm === false)).toBe(true);
     expect(calls.filter((c) => c.name === "doordash_set_address")).toHaveLength(1);
+  });
+
+  it("dry run empties a leftover rehearsal cart and builds fresh; live still refuses", async () => {
+    const dry = fakeServer({ startCart: [{ name: "Old Bananas", quantity: 1 }] });
+    const p = new DoorDashMcpProvider(dry.caller, { defaultGroceryStore: "grocery", clearStaleCart: true });
+    const cart = await p.buildCart({ id: "store_42", name: "Safeway" }, [{ name: "Bananas", qty: 1 }]);
+    expect(cart.itemNames).toEqual(["Bananas"]);
+    expect(dry.calls.some((c) => c.name === "doordash_clear_cart")).toBe(true);
+
+    // On the checkout page the rows are hidden; a non-zero subtotal still means "not empty".
+    const live = new DoorDashMcpProvider(fakeServer({ startCart: [{ name: "Pizza", quantity: 1 }], hiddenRows: true }).caller, { defaultGroceryStore: "grocery" });
+    await expect(live.buildCart({ id: "store_42", name: "Safeway" }, [{ name: "Bananas", qty: 1 }])).rejects.toThrow(/already has items/);
   });
 
   it("refuses a cart that already has someone else's items", async () => {
